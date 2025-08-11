@@ -7,6 +7,8 @@ export interface User {
   fullName: string
   role: 'DINER' | 'RESTAURANT_OWNER' | 'SUPER_ADMIN'
   restaurantId?: number
+  restaurantName?: string
+  subscriptionPlan?: 'BASIC' | 'PRO'
 }
 
 export interface AuthContextType {

@@ -4,13 +4,7 @@ import LandingPage from './components/LandingPage'
 import LoginForm from './components/auth/LoginForm'
 import RegisterForm from './components/auth/RegisterForm'
 import ProtectedRoute from './components/auth/ProtectedRoute'
-
-// Placeholder components for different dashboards
-const RestaurantDashboard = () => (
-  <div className="min-h-screen flex items-center justify-center">
-    <h1 className="text-2xl font-bold">Restaurant Dashboard (Coming Soon)</h1>
-  </div>
-)
+import Dashboard from './pages/Dashboard'
 
 const AdminDashboard = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -39,10 +33,10 @@ function App() {
 
           {/* Protected Routes */}
           <Route
-            path="/dashboard"
+            path="/dashboard/*"
             element={
               <ProtectedRoute requiredRole="RESTAURANT_OWNER">
-                <RestaurantDashboard />
+                <Dashboard />
               </ProtectedRoute>
             }
           />

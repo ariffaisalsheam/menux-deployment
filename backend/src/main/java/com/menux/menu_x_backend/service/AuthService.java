@@ -98,7 +98,9 @@ public class AuthService {
             user.getEmail(),
             user.getFullName(),
             user.getRole(),
-            restaurant != null ? restaurant.getId() : null
+            restaurant != null ? restaurant.getId() : null,
+            restaurant != null ? restaurant.getName() : null,
+            restaurant != null ? restaurant.getSubscriptionPlan() : null
         );
     }
 
@@ -130,7 +132,9 @@ public class AuthService {
             user.getEmail(),
             user.getFullName(),
             user.getRole(),
-            restaurantId
+            restaurantId,
+            user.getRestaurant() != null ? user.getRestaurant().getName() : null,
+            user.getRestaurant() != null ? user.getRestaurant().getSubscriptionPlan() : null
         );
     }
 }

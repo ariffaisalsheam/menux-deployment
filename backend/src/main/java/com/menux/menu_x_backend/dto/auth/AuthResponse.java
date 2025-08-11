@@ -1,9 +1,10 @@
 package com.menux.menu_x_backend.dto.auth;
 
 import com.menux.menu_x_backend.entity.User;
+import com.menux.menu_x_backend.entity.Restaurant;
 
 public class AuthResponse {
-    
+
     private String token;
     private String type = "Bearer";
     private Long id;
@@ -12,12 +13,15 @@ public class AuthResponse {
     private String fullName;
     private User.Role role;
     private Long restaurantId;
+    private String restaurantName;
+    private Restaurant.SubscriptionPlan subscriptionPlan;
     
     // Constructors
     public AuthResponse() {}
     
-    public AuthResponse(String token, Long id, String username, String email, 
-                       String fullName, User.Role role, Long restaurantId) {
+    public AuthResponse(String token, Long id, String username, String email,
+                       String fullName, User.Role role, Long restaurantId,
+                       String restaurantName, Restaurant.SubscriptionPlan subscriptionPlan) {
         this.token = token;
         this.id = id;
         this.username = username;
@@ -25,6 +29,8 @@ public class AuthResponse {
         this.fullName = fullName;
         this.role = role;
         this.restaurantId = restaurantId;
+        this.restaurantName = restaurantName;
+        this.subscriptionPlan = subscriptionPlan;
     }
     
     // Getters and Setters
@@ -51,4 +57,10 @@ public class AuthResponse {
     
     public Long getRestaurantId() { return restaurantId; }
     public void setRestaurantId(Long restaurantId) { this.restaurantId = restaurantId; }
+
+    public String getRestaurantName() { return restaurantName; }
+    public void setRestaurantName(String restaurantName) { this.restaurantName = restaurantName; }
+
+    public Restaurant.SubscriptionPlan getSubscriptionPlan() { return subscriptionPlan; }
+    public void setSubscriptionPlan(Restaurant.SubscriptionPlan subscriptionPlan) { this.subscriptionPlan = subscriptionPlan; }
 }
