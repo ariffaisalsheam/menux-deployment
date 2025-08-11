@@ -1,12 +1,11 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Store, 
-  Crown, 
-  BarChart3, 
-  TestTube,
+import {
+  LayoutDashboard,
+  Users,
+  Store,
+  Crown,
+  BarChart3,
   Settings,
   Shield
 } from 'lucide-react';
@@ -50,11 +49,6 @@ const navigationItems = [
 ];
 
 const systemItems = [
-  {
-    title: 'Testing Interface',
-    icon: TestTube,
-    href: '/admin/testing',
-  },
   {
     title: 'System Settings',
     icon: Settings,

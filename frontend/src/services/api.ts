@@ -81,4 +81,120 @@ export const authAPI = {
   },
 }
 
+// User Management API (Admin only)
+export const userAPI = {
+  getAllUsers: async () => {
+    const response = await api.get('/admin/users')
+    return response.data
+  },
+
+  getUserById: async (id: number) => {
+    const response = await api.get(`/admin/users/${id}`)
+    return response.data
+  },
+
+  updateUserPlan: async (userId: number, plan: 'BASIC' | 'PRO') => {
+    const response = await api.put(`/admin/users/${userId}/plan`, { subscriptionPlan: plan })
+    return response.data
+  },
+
+  deleteUser: async (userId: number) => {
+    const response = await api.delete(`/admin/users/${userId}`)
+    return response.data
+  }
+}
+
+// Restaurant Management API
+export const restaurantAPI = {
+  getAllRestaurants: async () => {
+    const response = await api.get('/admin/restaurants')
+    return response.data
+  },
+
+  getRestaurantById: async (id: number) => {
+    const response = await api.get(`/restaurants/${id}`)
+    return response.data
+  },
+
+  updateRestaurant: async (id: number, data: any) => {
+    const response = await api.put(`/restaurants/${id}`, data)
+    return response.data
+  },
+
+  getCurrentRestaurant: async () => {
+    const response = await api.get('/restaurants/current')
+    return response.data
+  }
+}
+
+// Menu Management API
+export const menuAPI = {
+  getMenuItems: async (restaurantId?: number) => {
+    const url = restaurantId ? `/restaurants/${restaurantId}/menu` : '/menu'
+    const response = await api.get(url)
+    return response.data
+  },
+
+  createMenuItem: async (data: any) => {
+    const response = await api.post('/menu', data)
+    return response.data
+  },
+
+  updateMenuItem: async (id: number, data: any) => {
+    const response = await api.put(`/menu/${id}`, data)
+    return response.data
+  },
+
+  deleteMenuItem: async (id: number) => {
+    const response = await api.delete(`/menu/${id}`)
+    return response.data
+  }
+}
+
+// Order Management API
+export const orderAPI = {
+  getOrders: async (restaurantId?: number) => {
+    const url = restaurantId ? `/restaurants/${restaurantId}/orders` : '/orders'
+    const response = await api.get(url)
+    return response.data
+  },
+
+  getOrderById: async (id: number) => {
+    const response = await api.get(`/orders/${id}`)
+    return response.data
+  },
+
+  updateOrderStatus: async (id: number, status: string) => {
+    const response = await api.put(`/orders/${id}/status`, { status })
+    return response.data
+  }
+}
+
+// Analytics API
+export const analyticsAPI = {
+  getRestaurantAnalytics: async (restaurantId?: number) => {
+    const url = restaurantId ? `/analytics/restaurant/${restaurantId}` : '/analytics/restaurant'
+    const response = await api.get(url)
+    return response.data
+  },
+
+  getPlatformAnalytics: async () => {
+    const response = await api.get('/admin/analytics')
+    return response.data
+  }
+}
+
+// AI Services API
+export const aiAPI = {
+  generateDescription: async (itemName: string) => {
+    const response = await api.post('/ai/menu-description', { itemName })
+    return response.data
+  },
+
+  analyzeFeedback: async (feedback: string) => {
+    const response = await api.post('/ai/feedback-analysis', { feedback })
+    return response.data
+  }
+}
+
 export default api

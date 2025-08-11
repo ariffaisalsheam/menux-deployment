@@ -22,6 +22,9 @@ export interface AuthContextType {
   switchUserContext: (userData: User) => void
   refreshUser: () => Promise<void>
   isAdmin: boolean
+  originalAdminUser: User | null
+  returnToAdmin: () => void
+  isViewingAsUser: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -42,36 +45,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [originalAdminUser, setOriginalAdminUser] = useState<User | null>(null)
 
   useEffect(() => {
     // Check for stored authentication data on app load
     const storedToken = localStorage.getItem('token')
     const storedUser = localStorage.getItem('user')
-
-    // Check for test data that might override stored user
-    const testPlan = localStorage.getItem('test_user_plan')
-    const testUserData = localStorage.getItem('test_user_data')
+    const storedAdminUser = localStorage.getItem('originalAdminUser')
 
     if (storedToken && storedUser) {
       try {
-        let parsedUser = JSON.parse(storedUser)
-
-        // Override with test data if available
-        if (testPlan && testUserData) {
-          try {
-            const parsedTestUser = JSON.parse(testUserData)
-            parsedUser = { ...parsedUser, ...parsedTestUser, subscriptionPlan: testPlan }
-          } catch (testError) {
-            console.error('Error parsing test user data:', testError)
-          }
-        }
-
+        const parsedUser = JSON.parse(storedUser)
         setToken(storedToken)
         setUser(parsedUser)
+
+        // Restore admin session if exists
+        if (storedAdminUser) {
+          try {
+            const parsedAdminUser = JSON.parse(storedAdminUser)
+            setOriginalAdminUser(parsedAdminUser)
+          } catch (adminError) {
+            console.error('Error parsing admin user data:', adminError)
+            localStorage.removeItem('originalAdminUser')
+          }
+        }
       } catch (error) {
         console.error('Error parsing stored user data:', error)
         localStorage.removeItem('token')
         localStorage.removeItem('user')
+        localStorage.removeItem('originalAdminUser')
       }
     }
     setIsLoading(false)
@@ -87,10 +89,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = () => {
     setToken(null)
     setUser(null)
+    setOriginalAdminUser(null)
     localStorage.removeItem('token')
     localStorage.removeItem('user')
-    localStorage.removeItem('test_user_plan')
-    localStorage.removeItem('test_user_data')
+    localStorage.removeItem('originalAdminUser')
   }
 
   const updateUserPlan = (plan: 'BASIC' | 'PRO') => {
@@ -104,27 +106,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const switchUserContext = (userData: User) => {
+    // Save current admin user if not already saved
+    if (user?.role === 'SUPER_ADMIN' && !originalAdminUser) {
+      setOriginalAdminUser(user)
+      localStorage.setItem('originalAdminUser', JSON.stringify(user))
+    }
+
     setUser(userData)
     localStorage.setItem('user', JSON.stringify(userData))
-    localStorage.setItem('test_user_plan', userData.subscriptionPlan || 'BASIC')
-    localStorage.setItem('test_user_data', JSON.stringify(userData))
+  }
+
+  const returnToAdmin = () => {
+    if (originalAdminUser) {
+      setUser(originalAdminUser)
+      setOriginalAdminUser(null)
+      localStorage.setItem('user', JSON.stringify(originalAdminUser))
+      localStorage.removeItem('originalAdminUser')
+      // Navigate back to admin dashboard
+      window.location.href = '/admin'
+    }
   }
 
   const refreshUser = async () => {
-    // Check for test data first
-    const testPlan = localStorage.getItem('test_user_plan')
-    const testUserData = localStorage.getItem('test_user_data')
-
-    if (testPlan && testUserData && user) {
-      try {
-        const parsedTestUser = JSON.parse(testUserData)
-        setUser(parsedTestUser)
-        return
-      } catch (error) {
-        console.error('Error parsing test user data:', error)
-      }
-    }
-
     // In a real app, this would fetch fresh user data from the API
     // For now, we'll just update from localStorage
     const storedUser = localStorage.getItem('user')
@@ -148,7 +151,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     updateUserPlan,
     switchUserContext,
     refreshUser,
-    isAdmin: user?.role === 'SUPER_ADMIN'
+    isAdmin: user?.role === 'SUPER_ADMIN',
+    originalAdminUser,
+    returnToAdmin,
+    isViewingAsUser: !!originalAdminUser && user?.role !== 'SUPER_ADMIN'
   }
 
   return (

@@ -11,7 +11,7 @@ import { AIMenuWriter } from '../components/dashboard/AIMenuWriter';
 import { FeedbackAnalysis } from '../components/dashboard/FeedbackAnalysis';
 import { AdvancedAnalytics } from '../components/dashboard/AdvancedAnalytics';
 import { NotificationCenter } from '../components/dashboard/NotificationCenter';
-import { TestingGuide } from '../components/dashboard/TestingGuide';
+
 
 const Dashboard: React.FC = () => {
   return (
@@ -27,7 +27,7 @@ const Dashboard: React.FC = () => {
         <Route path="/feedback" element={<FeedbackAnalysis />} />
         <Route path="/advanced-analytics" element={<AdvancedAnalytics />} />
         <Route path="/notifications" element={<NotificationCenter />} />
-        <Route path="/testing" element={<TestingGuide />} />
+
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </DashboardLayout>

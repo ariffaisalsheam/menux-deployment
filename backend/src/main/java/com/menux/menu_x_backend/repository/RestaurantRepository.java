@@ -26,6 +26,8 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
     
     @Query("SELECT COUNT(r) FROM Restaurant r WHERE r.isActive = true AND r.subscriptionPlan = 'PRO'")
     long countProRestaurants();
-    
+
+    Long countBySubscriptionPlan(Restaurant.SubscriptionPlan subscriptionPlan);
+
     boolean existsByName(String name);
 }

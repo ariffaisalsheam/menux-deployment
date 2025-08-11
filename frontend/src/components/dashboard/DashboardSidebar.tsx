@@ -12,8 +12,7 @@ import {
   Zap,
   Brain,
   TrendingUp,
-  Bell,
-  TestTube
+  Bell
 } from 'lucide-react';
 import {
   Sidebar,
@@ -106,12 +105,6 @@ const settingsItems = [
     title: 'Settings',
     icon: Settings,
     href: '/dashboard/settings',
-    plan: 'BASIC'
-  },
-  {
-    title: 'Testing Guide',
-    icon: TestTube,
-    href: '/dashboard/testing',
     plan: 'BASIC'
   }
 ];
