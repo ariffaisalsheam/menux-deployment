@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { QrCode, Smartphone, Brain, BarChart3, Clock, Shield } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
+import { Navbar } from "@/components/layout/Navbar"
+import { Footer } from "@/components/layout/Footer"
 
 export default function LandingPage() {
-  const { isAuthenticated, user, logout } = useAuth()
+  const { isAuthenticated, user } = useAuth()
 
   const handleAuthAction = () => {
     if (isAuthenticated) {
@@ -20,51 +22,17 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <QrCode className="h-8 w-8 text-blue-600 mr-2" />
-              <span className="text-2xl font-bold text-gray-900">Menu.X</span>
-            </div>
-            <nav className="hidden md:flex space-x-8">
-              <a href="#features" className="text-gray-500 hover:text-gray-900">Features</a>
-              <a href="#pricing" className="text-gray-500 hover:text-gray-900">Pricing</a>
-              <a href="#contact" className="text-gray-500 hover:text-gray-900">Contact</a>
-            </nav>
-            <div className="flex space-x-4">
-              {isAuthenticated ? (
-                <>
-                  <Link to={handleAuthAction()}>
-                    <Button variant="outline">Dashboard</Button>
-                  </Link>
-                  <Button onClick={logout}>Sign Out</Button>
-                </>
-              ) : (
-                <>
-                  <Link to="/login">
-                    <Button variant="outline">Sign In</Button>
-                  </Link>
-                  <Link to="/register">
-                    <Button>Get Started</Button>
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-background dark:to-background">
+      <Navbar />
 
       {/* Hero Section */}
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
+          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 dark:text-foreground mb-6">
             Smart Digital Communication
-            <span className="text-blue-600 block">for Restaurants in Bangladesh</span>
+            <span className="text-blue-600 dark:text-primary block">for Restaurants in Bangladesh</span>
           </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+          <p className="text-xl text-gray-600 dark:text-muted-foreground mb-8 max-w-3xl mx-auto">
             Transform your restaurant with QR-based menu viewing, digital ordering, 
             and AI-powered feedback analysis. Modernize the dining experience today.
           </p>
@@ -82,13 +50,13 @@ export default function LandingPage() {
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-20 bg-white">
+      <section id="features" className="py-20 bg-white dark:bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
               Everything You Need to Modernize Your Restaurant
             </h2>
-            <p className="text-xl text-gray-600">
+            <p className="text-xl text-gray-600 dark:text-muted-foreground">
               Powerful features designed specifically for the Bangladesh restaurant industry
             </p>
           </div>
@@ -158,13 +126,13 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-20 bg-gray-50">
+      <section id="pricing" className="py-20 bg-gray-50 dark:bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
               Simple, Transparent Pricing
             </h2>
-            <p className="text-xl text-gray-600">
+            <p className="text-xl text-gray-600 dark:text-muted-foreground">
               Choose the plan that fits your restaurant's needs
             </p>
           </div>
@@ -176,8 +144,8 @@ export default function LandingPage() {
                 <CardTitle className="text-2xl">Basic</CardTitle>
                 <CardDescription>Perfect for small restaurants</CardDescription>
                 <div className="mt-4">
-                  <span className="text-4xl font-bold">৳2,000</span>
-                  <span className="text-gray-600">/month</span>
+                  <span className="text-4xl font-bold text-green-600">Free</span>
+                  <span className="text-gray-600"> forever</span>
                 </div>
               </CardHeader>
               <CardContent>
@@ -214,7 +182,7 @@ export default function LandingPage() {
                 <CardTitle className="text-2xl">Pro</CardTitle>
                 <CardDescription>Advanced features with AI power</CardDescription>
                 <div className="mt-4">
-                  <span className="text-4xl font-bold">৳5,000</span>
+                  <span className="text-4xl font-bold">৳1,500</span>
                   <span className="text-gray-600">/month</span>
                 </div>
               </CardHeader>
@@ -267,49 +235,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-8">
-            <div>
-              <div className="flex items-center mb-4">
-                <QrCode className="h-6 w-6 text-blue-400 mr-2" />
-                <span className="text-xl font-bold">Menu.X</span>
-              </div>
-              <p className="text-gray-400">
-                Modernizing restaurants across Bangladesh with smart digital solutions.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Product</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white">Features</a></li>
-                <li><a href="#" className="hover:text-white">Pricing</a></li>
-                <li><a href="#" className="hover:text-white">Demo</a></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Support</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white">Help Center</a></li>
-                <li><a href="#" className="hover:text-white">Contact Us</a></li>
-                <li><a href="#" className="hover:text-white">Documentation</a></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Company</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white">About</a></li>
-                <li><a href="#" className="hover:text-white">Blog</a></li>
-                <li><a href="#" className="hover:text-white">Careers</a></li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2025 Menu.X. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

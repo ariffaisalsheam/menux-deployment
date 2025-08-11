@@ -20,9 +20,17 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
         try {
+            System.out.println("Registration request received:");
+            System.out.println("Username: " + request.getUsername());
+            System.out.println("Email: " + request.getEmail());
+            System.out.println("Role: " + request.getRole());
+            System.out.println("Restaurant Name: " + request.getRestaurantName());
+
             AuthResponse response = authService.register(request);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
+            System.out.println("Registration error: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.badRequest()
                 .body(new MessageResponse("Error: " + e.getMessage()));
         }

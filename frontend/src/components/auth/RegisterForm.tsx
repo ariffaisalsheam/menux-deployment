@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/contexts/AuthContext'
 import { authAPI } from '@/services/api'
@@ -16,7 +16,7 @@ export default function RegisterForm() {
     password: '',
     fullName: '',
     phoneNumber: '',
-    role: 'RESTAURANT_OWNER' as 'DINER' | 'RESTAURANT_OWNER' | 'SUPER_ADMIN',
+    role: 'RESTAURANT_OWNER' as const,
     restaurantName: '',
     restaurantAddress: '',
     restaurantDescription: '',
@@ -30,7 +30,7 @@ export default function RegisterForm() {
   const { login } = useAuth()
   const navigate = useNavigate()
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
@@ -43,18 +43,16 @@ export default function RegisterForm() {
     setIsLoading(true)
     setError('')
 
-    // Validate restaurant fields if role is RESTAURANT_OWNER
-    if (formData.role === 'RESTAURANT_OWNER') {
-      if (!formData.restaurantName.trim()) {
-        setError('Restaurant name is required for restaurant owners')
-        setIsLoading(false)
-        return
-      }
-      if (!formData.restaurantAddress.trim()) {
-        setError('Restaurant address is required for restaurant owners')
-        setIsLoading(false)
-        return
-      }
+    // Validate restaurant fields
+    if (!formData.restaurantName.trim()) {
+      setError('Restaurant name is required')
+      setIsLoading(false)
+      return
+    }
+    if (!formData.restaurantAddress.trim()) {
+      setError('Restaurant address is required')
+      setIsLoading(false)
+      return
     }
 
     try {
@@ -91,9 +89,9 @@ export default function RegisterForm() {
             <QrCode className="h-8 w-8 text-blue-600 mr-2" />
             <span className="text-2xl font-bold text-gray-900">Menu.X</span>
           </div>
-          <CardTitle className="text-2xl">Create Your Account</CardTitle>
+          <CardTitle className="text-2xl">Create Your Restaurant Account</CardTitle>
           <CardDescription>
-            Join Menu.X to modernize your restaurant experience
+            Register your restaurant to start using Menu.X's digital solutions
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -159,52 +157,34 @@ export default function RegisterForm() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="password">Password *</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={formData.password}
-                    onChange={handleChange}
-                    required
-                    placeholder="Create a password"
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-gray-400" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-gray-400" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role">Account Type *</Label>
-                <Select
-                  id="role"
-                  name="role"
-                  value={formData.role}
+            <div className="space-y-2">
+              <Label htmlFor="password">Password *</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
                   onChange={handleChange}
                   required
+                  placeholder="Create a password"
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setShowPassword(!showPassword)}
                 >
-                  <option value="RESTAURANT_OWNER">Restaurant Owner</option>
-                  <option value="DINER">Diner</option>
-                </Select>
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4 text-gray-400" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-gray-400" />
+                  )}
+                </button>
               </div>
             </div>
 
-            {formData.role === 'RESTAURANT_OWNER' && (
-              <>
-                <div className="border-t pt-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Restaurant Information</h3>
+            <div className="border-t pt-4">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Restaurant Information</h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -270,8 +250,6 @@ export default function RegisterForm() {
                     </div>
                   </div>
                 </div>
-              </>
-            )}
 
             <Button
               type="submit"
