@@ -5,12 +5,10 @@ import LoginForm from './components/auth/LoginForm'
 import RegisterForm from './components/auth/RegisterForm'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import Dashboard from './pages/Dashboard'
+import AdminDashboard from './pages/AdminDashboard'
+// Removed dev-only utilities import; file not present
 
-const AdminDashboard = () => (
-  <div className="min-h-screen flex items-center justify-center">
-    <h1 className="text-2xl font-bold">Admin Dashboard (Coming Soon)</h1>
-  </div>
-)
+// Inline placeholder removed to use the real Super Admin dashboard page
 
 const UnauthorizedPage = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -37,6 +35,14 @@ function App() {
             element={
               <ProtectedRoute requiredRole="RESTAURANT_OWNER">
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/*"
+            element={
+              <ProtectedRoute requiredRole="SUPER_ADMIN">
+                <AdminDashboard />
               </ProtectedRoute>
             }
           />

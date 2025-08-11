@@ -1,17 +1,19 @@
 import React from 'react';
-import { 
-  Home, 
-  Store, 
-  Menu as MenuIcon, 
-  ShoppingCart, 
-  MessageSquare, 
-  // BarChart3, 
-  Settings, 
+import { Link, useLocation } from 'react-router-dom';
+import {
+  Home,
+  Store,
+  Menu as MenuIcon,
+  ShoppingCart,
+  MessageSquare,
+  BarChart3,
+  Settings,
   Crown,
   Zap,
   Brain,
   TrendingUp,
-  Bell
+  Bell,
+  TestTube
 } from 'lucide-react';
 import {
   Sidebar,
@@ -52,6 +54,12 @@ const navigationItems = [
     icon: ShoppingCart,
     href: '/dashboard/orders',
     plan: 'BASIC'
+  },
+  {
+    title: 'Basic Analytics',
+    icon: BarChart3,
+    href: '/dashboard/analytics',
+    plan: 'BASIC'
   }
 ];
 
@@ -80,7 +88,7 @@ const proFeatures = [
   {
     title: 'Advanced Analytics',
     icon: TrendingUp,
-    href: '/dashboard/analytics',
+    href: '/dashboard/advanced-analytics',
     plan: 'PRO',
     description: 'Detailed insights'
   },
@@ -99,11 +107,18 @@ const settingsItems = [
     icon: Settings,
     href: '/dashboard/settings',
     plan: 'BASIC'
+  },
+  {
+    title: 'Testing Guide',
+    icon: TestTube,
+    href: '/dashboard/testing',
+    plan: 'BASIC'
   }
 ];
 
 export const DashboardSidebar: React.FC = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const isPro = user?.subscriptionPlan === 'PRO';
 
   return (
@@ -123,16 +138,25 @@ export const DashboardSidebar: React.FC = () => {
           <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigationItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild>
-                    <a href={item.href} className="flex items-center gap-3">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {navigationItems.map((item) => {
+                const isActive = location.pathname === item.href ||
+                  (item.href === '/dashboard' && location.pathname === '/dashboard/');
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild>
+                      <Link
+                        to={item.href}
+                        className={`flex items-center gap-3 ${
+                          isActive ? 'bg-accent text-accent-foreground' : ''
+                        }`}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -145,37 +169,44 @@ export const DashboardSidebar: React.FC = () => {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {proFeatures.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton 
-                    asChild 
-                    className={!isPro ? 'opacity-50 cursor-not-allowed' : ''}
-                  >
-                    <a 
-                      href={isPro ? item.href : '#'} 
-                      className="flex items-center gap-3"
-                      onClick={!isPro ? (e) => e.preventDefault() : undefined}
+              {proFeatures.map((item) => {
+                const isActive = location.pathname === item.href;
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      className={!isPro ? 'opacity-50 cursor-not-allowed' : ''}
                     >
-                      <item.icon className="h-4 w-4" />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
+                      {isPro ? (
+                        <Link
+                          to={item.href}
+                          className={`flex items-center gap-3 ${
+                            isActive ? 'bg-accent text-accent-foreground' : ''
+                          }`}
+                        >
+                          <item.icon className="h-4 w-4" />
                           <span>{item.title}</span>
-                          {!isPro && (
-                            <Badge variant="secondary" className="text-xs">
-                              Pro
-                            </Badge>
-                          )}
+                        </Link>
+                      ) : (
+                        <div className="flex items-center gap-3 cursor-not-allowed">
+                          <item.icon className="h-4 w-4" />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span>{item.title}</span>
+                              <Badge variant="secondary" className="text-xs">
+                                Pro
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {item.description}
+                            </p>
+                          </div>
                         </div>
-                        {!isPro && (
-                          <p className="text-xs text-muted-foreground">
-                            {item.description}
-                          </p>
-                        )}
-                      </div>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -184,16 +215,24 @@ export const DashboardSidebar: React.FC = () => {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {settingsItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild>
-                    <a href={item.href} className="flex items-center gap-3">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {settingsItems.map((item) => {
+                const isActive = location.pathname === item.href;
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild>
+                      <Link
+                        to={item.href}
+                        className={`flex items-center gap-3 ${
+                          isActive ? 'bg-accent text-accent-foreground' : ''
+                        }`}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
