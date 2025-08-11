@@ -4,7 +4,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useAuth } from '../../contexts/AuthContext';
+import { menuAPI } from '../../services/api';
+import { useApi, useApiMutation } from '../../hooks/useApi';
+import { LoadingSkeleton } from '../common/LoadingSpinner';
+import { LoadingSpinner } from '../common/LoadingSpinner';
+import { ErrorDisplay } from '../common/ErrorDisplay';
 
 interface MenuItem {
   id: number;
@@ -12,73 +21,167 @@ interface MenuItem {
   description: string;
   price: number;
   category: string;
-  available: boolean;
-  image?: string;
+  isAvailable: boolean;
+  imageUrl?: string;
 }
 
-const mockMenuItems: MenuItem[] = [
-  {
-    id: 1,
-    name: 'Chicken Biryani',
-    description: 'Aromatic basmati rice cooked with tender chicken and traditional spices',
-    price: 350,
-    category: 'Main Course',
-    available: true
-  },
-  {
-    id: 2,
-    name: 'Beef Bhuna',
-    description: 'Slow-cooked beef curry with rich spices and onions',
-    price: 450,
-    category: 'Main Course',
-    available: true
-  },
-  {
-    id: 3,
-    name: 'Fish Curry',
-    description: 'Traditional Bengali fish curry with mustard oil and spices',
-    price: 280,
-    category: 'Main Course',
-    available: false
-  },
-  {
-    id: 4,
-    name: 'Vegetable Samosa',
-    description: 'Crispy pastry filled with spiced vegetables',
-    price: 80,
-    category: 'Appetizer',
-    available: true
-  }
-];
+interface MenuItemFormData {
+  name: string;
+  description: string;
+  price: string;
+  category: string;
+  isAvailable: boolean;
+  imageUrl?: string;
+}
 
 export const MenuManagement: React.FC = () => {
   const { user } = useAuth();
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(mockMenuItems);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [, setIsAddingItem] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [formData, setFormData] = useState<MenuItemFormData>({
+    name: '',
+    description: '',
+    price: '',
+    category: 'MAIN_COURSE',
+    isAvailable: true,
+    imageUrl: ''
+  });
 
-  const categories = ['All', 'Appetizer', 'Main Course', 'Dessert', 'Beverages'];
+  const categories = ['All', 'APPETIZER', 'MAIN_COURSE', 'DESSERT', 'BEVERAGE'];
   const isPro = user?.subscriptionPlan === 'PRO';
 
-  const filteredItems = menuItems.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
+  // Fetch menu items
+  const {
+    data: menuItems = [],
+    loading,
+    error,
+    refetch
+  } = useApi<MenuItem[]>(() => menuAPI.getMenuItems());
+
+  // Create menu item mutation
+  const createMutation = useApiMutation(
+    (data: Omit<MenuItem, 'id'>) => menuAPI.createMenuItem(data),
+    {
+      onSuccess: () => {
+        refetch();
+        setIsDialogOpen(false);
+        resetForm();
+      }
+    }
+  );
+
+  // Update menu item mutation
+  const updateMutation = useApiMutation(
+    ({ id, data }: { id: number; data: Partial<MenuItem> }) =>
+      menuAPI.updateMenuItem(id, data),
+    {
+      onSuccess: () => {
+        refetch();
+        setIsDialogOpen(false);
+        resetForm();
+        setEditingItem(null);
+      }
+    }
+  );
+
+  // Delete menu item mutation
+  const deleteMutation = useApiMutation(
+    (id: number) => menuAPI.deleteMenuItem(id),
+    {
+      onSuccess: () => refetch()
+    }
+  );
+
+  // Form handling functions
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      price: '',
+      category: 'MAIN_COURSE',
+      isAvailable: true,
+      imageUrl: ''
+    });
+  };
+
+  const handleAddItem = () => {
+    resetForm();
+    setEditingItem(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleEditItem = (item: MenuItem) => {
+    setFormData({
+      name: item.name,
+      description: item.description,
+      price: item.price.toString(),
+      category: item.category,
+      isAvailable: item.isAvailable,
+      imageUrl: item.imageUrl || ''
+    });
+    setEditingItem(item);
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = async () => {
+    const menuItemData = {
+      name: formData.name,
+      description: formData.description,
+      price: parseFloat(formData.price),
+      category: formData.category,
+      isAvailable: formData.isAvailable,
+      imageUrl: formData.imageUrl
+    };
+
+    if (editingItem) {
+      await updateMutation.mutate({ id: editingItem.id, data: menuItemData });
+    } else {
+      await createMutation.mutate(menuItemData);
+    }
+  };
+
+  const handleToggleAvailability = async (id: number) => {
+    const item = (menuItems ?? []).find(item => item.id === id);
+    if (item) {
+      await updateMutation.mutate({
+        id,
+        data: { isAvailable: !item.isAvailable }
+      });
+    }
+  };
+
+  const handleDeleteItem = async (id: number) => {
+    if (window.confirm('Are you sure you want to delete this menu item?')) {
+      await deleteMutation.mutate(id);
+    }
+  };
+
+  const safeMenuItems = menuItems ?? [];
+  const filteredItems = safeMenuItems.filter(item => {
+    const matchesSearch = item?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         item?.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'All' || item?.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const handleToggleAvailability = (id: number) => {
-    setMenuItems(items =>
-      items.map(item =>
-        item.id === id ? { ...item, available: !item.available } : item
-      )
-    );
-  };
 
-  const handleDeleteItem = (id: number) => {
-    setMenuItems(items => items.filter(item => item.id !== id));
-  };
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <LoadingSkeleton lines={2} className="w-64" />
+          <LoadingSkeleton lines={1} className="w-32" />
+        </div>
+        <LoadingSkeleton lines={6} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <ErrorDisplay error={error} onRetry={refetch} />;
+  }
 
   return (
     <div className="space-y-6">
@@ -94,7 +197,7 @@ export const MenuManagement: React.FC = () => {
           <Badge variant={isPro ? 'default' : 'secondary'}>
             {user?.subscriptionPlan || 'Basic'} Plan
           </Badge>
-          <Button onClick={() => setIsAddingItem(true)}>
+          <Button onClick={handleAddItem}>
             <Plus className="w-4 h-4 mr-2" />
             Add Menu Item
           </Button>
@@ -162,14 +265,14 @@ export const MenuManagement: React.FC = () => {
       {/* Menu Items Grid */}
       <div className="grid gap-4">
         {filteredItems.map((item) => (
-          <Card key={item.id} className={!item.available ? 'opacity-60' : ''}>
+          <Card key={item.id} className={!item.isAvailable ? 'opacity-60' : ''}>
             <CardContent className="pt-6">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="font-semibold text-lg">{item.name}</h3>
-                    <Badge variant={item.available ? 'default' : 'secondary'}>
-                      {item.available ? 'Available' : 'Unavailable'}
+                    <Badge variant={item.isAvailable ? 'default' : 'secondary'}>
+                      {item.isAvailable ? 'Available' : 'Unavailable'}
                     </Badge>
                     <Badge variant="outline">{item.category}</Badge>
                   </div>
@@ -182,9 +285,13 @@ export const MenuManagement: React.FC = () => {
                     size="sm"
                     onClick={() => handleToggleAvailability(item.id)}
                   >
-                    {item.available ? 'Mark Unavailable' : 'Mark Available'}
+                    {item.isAvailable ? 'Mark Unavailable' : 'Mark Available'}
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEditItem(item)}
+                  >
                     <Edit className="w-4 h-4" />
                   </Button>
                   <Button
@@ -207,7 +314,7 @@ export const MenuManagement: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-center py-8">
               <p className="text-muted-foreground">No menu items found matching your criteria.</p>
-              <Button className="mt-4" onClick={() => setIsAddingItem(true)}>
+              <Button className="mt-4" onClick={handleAddItem}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Your First Menu Item
               </Button>
@@ -221,7 +328,7 @@ export const MenuManagement: React.FC = () => {
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-2xl font-bold">{menuItems.length}</p>
+              <p className="text-2xl font-bold">{(menuItems ?? []).length}</p>
               <p className="text-sm text-muted-foreground">Total Items</p>
             </div>
           </CardContent>
@@ -230,7 +337,7 @@ export const MenuManagement: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold text-green-600">
-                {menuItems.filter(item => item.available).length}
+                {safeMenuItems.filter(item => item.isAvailable).length}
               </p>
               <p className="text-sm text-muted-foreground">Available</p>
             </div>
@@ -240,7 +347,7 @@ export const MenuManagement: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold text-red-600">
-                {menuItems.filter(item => !item.available).length}
+                {safeMenuItems.filter(item => !item.isAvailable).length}
               </p>
               <p className="text-sm text-muted-foreground">Unavailable</p>
             </div>
@@ -250,13 +357,114 @@ export const MenuManagement: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold">
-                {new Set(menuItems.map(item => item.category)).size}
+                {new Set(safeMenuItems.map(item => item.category)).size}
               </p>
               <p className="text-sm text-muted-foreground">Categories</p>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Add/Edit Menu Item Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              {editingItem ? 'Edit Menu Item' : 'Add New Menu Item'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingItem ? 'Update the menu item details below.' : 'Fill in the details for your new menu item.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Name
+              </Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                className="col-span-3"
+                placeholder="Menu item name"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="description" className="text-right">
+                Description
+              </Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setFormData(prev => ({ ...prev, description: e.target.value }))
+                }
+                className="col-span-3"
+                placeholder="Describe your menu item"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="price" className="text-right">
+                Price (৳)
+              </Label>
+              <Input
+                id="price"
+                type="number"
+                value={formData.price}
+                onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                className="col-span-3"
+                placeholder="0.00"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="category" className="text-right">
+                Category
+              </Label>
+              <Select
+                value={formData.category}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="APPETIZER">Appetizer</SelectItem>
+                  <SelectItem value="MAIN_COURSE">Main Course</SelectItem>
+                  <SelectItem value="DESSERT">Dessert</SelectItem>
+                  <SelectItem value="BEVERAGES">Beverages</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="imageUrl" className="text-right">
+                Image URL
+              </Label>
+              <Input
+                id="imageUrl"
+                value={formData.imageUrl}
+                onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
+                className="col-span-3"
+                placeholder="https://example.com/image.jpg"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={createMutation.loading || updateMutation.loading}
+            >
+              {createMutation.loading || updateMutation.loading ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                editingItem ? 'Update Item' : 'Add Item'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

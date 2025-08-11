@@ -4,51 +4,76 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { useAuth } from '../../contexts/AuthContext';
+import { analyticsAPI } from '../../services/api';
+import { useApi } from '../../hooks/useApi';
+import { LoadingSkeleton } from '../common/LoadingSpinner';
+import { ErrorDisplay } from '../common/ErrorDisplay';
 
 interface AnalyticsData {
   revenue: { current: number; previous: number; change: number };
   orders: { current: number; previous: number; change: number };
   customers: { current: number; previous: number; change: number };
   rating: { current: number; previous: number; change: number };
+  topSellingItems: Array<{
+    name: string;
+    orders: number;
+    revenue: number;
+  }>;
+  weeklyTrends: Array<{
+    period: string;
+    revenue: number;
+    orders: number;
+    change: number;
+  }>;
 }
-
-const mockAnalytics: AnalyticsData = {
-  revenue: { current: 45231, previous: 41650, change: 8.6 },
-  orders: { current: 1234, previous: 1102, change: 12.0 },
-  customers: { current: 573, previous: 498, change: 15.1 },
-  rating: { current: 4.8, previous: 4.6, change: 4.3 }
-};
-
-const topSellingItems = [
-  { name: 'Chicken Biryani', orders: 156, revenue: 54600 },
-  { name: 'Beef Bhuna', orders: 89, revenue: 40050 },
-  { name: 'Fish Curry', orders: 67, revenue: 18760 },
-  { name: 'Vegetable Samosa', orders: 234, revenue: 18720 },
-  { name: 'Mutton Curry', orders: 45, revenue: 22500 }
-];
-
-const recentTrends = [
-  { period: 'This Week', revenue: 12500, orders: 89, change: 15.2 },
-  { period: 'Last Week', revenue: 10800, orders: 77, change: -2.1 },
-  { period: '2 Weeks Ago', revenue: 11000, orders: 79, change: 8.5 },
-  { period: '3 Weeks Ago', revenue: 10150, orders: 72, change: 3.2 }
-];
 
 export const BasicAnalytics: React.FC = () => {
   const { user } = useAuth();
   const isPro = user?.subscriptionPlan === 'PRO';
 
-  const StatCard = ({ 
-    title, 
-    icon: Icon, 
-    current, 
-    change, 
-    format = 'number' 
+  // Fetch analytics data
+  const {
+    data: analytics,
+    loading,
+    error,
+    refetch
+  } = useApi<AnalyticsData>(() => analyticsAPI.getRestaurantAnalytics());
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <LoadingSkeleton lines={2} className="w-64" />
+          <LoadingSkeleton lines={1} className="w-32" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <LoadingSkeleton key={i} lines={3} />
+          ))}
+        </div>
+        <LoadingSkeleton lines={8} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <ErrorDisplay error={error} onRetry={refetch} />;
+  }
+
+  if (!analytics) {
+    return <ErrorDisplay error="Analytics data not available" onRetry={refetch} />;
+  }
+
+  const StatCard = ({
+    title,
+    icon: Icon,
+    current,
+    change,
+    format = 'number'
   }: {
     title: string;
     icon: React.ElementType;
     current: number;
-    previous: number;
     change: number;
     format?: 'number' | 'currency' | 'rating';
   }) => {
@@ -136,31 +161,27 @@ export const BasicAnalytics: React.FC = () => {
         <StatCard
           title="Total Revenue"
           icon={DollarSign}
-          current={mockAnalytics.revenue.current}
-          previous={mockAnalytics.revenue.previous}
-          change={mockAnalytics.revenue.change}
+          current={analytics.revenue.current}
+          change={analytics.revenue.change}
           format="currency"
         />
         <StatCard
           title="Total Orders"
           icon={ShoppingCart}
-          current={mockAnalytics.orders.current}
-          previous={mockAnalytics.orders.previous}
-          change={mockAnalytics.orders.change}
+          current={analytics.orders.current}
+          change={analytics.orders.change}
         />
         <StatCard
           title="Customers"
           icon={Users}
-          current={mockAnalytics.customers.current}
-          previous={mockAnalytics.customers.previous}
-          change={mockAnalytics.customers.change}
+          current={analytics.customers.current}
+          change={analytics.customers.change}
         />
         <StatCard
           title="Average Rating"
           icon={Star}
-          current={mockAnalytics.rating.current}
-          previous={mockAnalytics.rating.previous}
-          change={mockAnalytics.rating.change}
+          current={analytics.rating.current}
+          change={analytics.rating.change}
           format="rating"
         />
       </div>
@@ -175,7 +196,7 @@ export const BasicAnalytics: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {topSellingItems.map((item, index) => (
+            {analytics.topSellingItems.map((item, index) => (
               <div key={item.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
@@ -206,7 +227,7 @@ export const BasicAnalytics: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {recentTrends.map((trend) => (
+            {analytics.weeklyTrends.map((trend) => (
               <div key={trend.period} className="flex items-center justify-between p-4 rounded-lg bg-gray-50">
                 <div>
                   <p className="font-medium">{trend.period}</p>

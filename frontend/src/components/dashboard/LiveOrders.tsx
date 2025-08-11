@@ -1,13 +1,47 @@
 import React from 'react';
-import { Crown, Zap, Clock, CheckCircle, ArrowRight } from 'lucide-react';
+import { Crown, Zap, Clock, CheckCircle, ArrowRight, ChefHat, Package } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
+import { orderAPI } from '../../services/api';
+import { useApi, useApiMutation } from '../../hooks/useApi';
+import { LoadingSpinner, LoadingSkeleton } from '../common/LoadingSpinner';
+import { ErrorDisplay } from '../common/ErrorDisplay';
+
+interface Order {
+  id: number;
+  customerName: string;
+  items: Array<{
+    name: string;
+    quantity: number;
+    price: number;
+  }>;
+  totalAmount: number;
+  status: 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED';
+  createdAt: string;
+  notes?: string;
+}
 
 export const LiveOrders: React.FC = () => {
   const { user } = useAuth();
   const isPro = user?.subscriptionPlan === 'PRO';
+
+  // Fetch orders
+  const {
+    data: orders = [],
+    loading,
+    error,
+    refetch
+  } = useApi<Order[]>(() => orderAPI.getOrders());
+
+  // Update order status mutation
+  const updateStatusMutation = useApiMutation(
+    ({ id, status }: { id: number; status: string }) => orderAPI.updateOrderStatus(id, status),
+    {
+      onSuccess: () => refetch()
+    }
+  );
 
   if (!isPro) {
     return (
@@ -178,9 +212,72 @@ export const LiveOrders: React.FC = () => {
     );
   }
 
-  // Pro user content would go here
+  // Helper functions
+  const handleStatusUpdate = async (orderId: number, newStatus: string) => {
+    await updateStatusMutation.mutate({ id: orderId, status: newStatus });
+  };
+
+  const getOrdersByStatus = (status: string) => {
+    const safeOrders = orders ?? [];
+    return safeOrders.filter(order => order.status === status);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'PENDING': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'CONFIRMED': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'PREPARING': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'READY': return 'bg-green-100 text-green-800 border-green-200';
+      case 'SERVED': return 'bg-gray-100 text-gray-800 border-gray-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getNextStatus = (currentStatus: string) => {
+    switch (currentStatus) {
+      case 'PENDING': return 'CONFIRMED';
+      case 'CONFIRMED': return 'PREPARING';
+      case 'PREPARING': return 'READY';
+      case 'READY': return 'SERVED';
+      default: return null;
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'PENDING': return Clock;
+      case 'CONFIRMED': return CheckCircle;
+      case 'PREPARING': return ChefHat;
+      case 'READY': return Package;
+      case 'SERVED': return CheckCircle;
+      default: return Clock;
+    }
+  };
+
+  // Pro users see the actual live orders interface
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <LoadingSkeleton lines={2} className="w-64" />
+          <LoadingSkeleton lines={1} className="w-24" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <LoadingSkeleton key={i} lines={8} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return <ErrorDisplay error={error} onRetry={refetch} />;
+  }
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
@@ -191,22 +288,91 @@ export const LiveOrders: React.FC = () => {
             Real-time order management with Kanban board interface
           </p>
         </div>
-        <Badge variant="default" className="flex items-center gap-1 bg-yellow-500">
-          <Crown className="w-3 h-3" />
-          Pro Active
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="default" className="flex items-center gap-1 bg-blue-500">
+            <Zap className="w-3 h-3" />
+            Live Updates
+          </Badge>
+          <Badge variant="outline">
+            {(orders ?? []).length} Total Orders
+          </Badge>
+        </div>
       </div>
 
-      {/* Pro Kanban Board would be implemented here */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="text-center py-8">
-            <Zap className="w-12 h-12 text-blue-500 mx-auto mb-4" />
-            <p className="text-lg font-medium">Live Order Management</p>
-            <p className="text-muted-foreground">Kanban board implementation would go here</p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Kanban Board */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {['PENDING', 'CONFIRMED', 'PREPARING', 'READY'].map((status) => {
+          const statusOrders = getOrdersByStatus(status);
+          const StatusIcon = getStatusIcon(status);
+
+          return (
+            <Card key={status} className="h-fit">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                  <StatusIcon className="w-4 h-4" />
+                  {status.charAt(0) + status.slice(1).toLowerCase()}
+                  <Badge variant="secondary" className="ml-auto">
+                    {statusOrders.length}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {statusOrders.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <StatusIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No {status.toLowerCase()} orders</p>
+                  </div>
+                ) : (
+                  statusOrders.map((order) => (
+                    <Card key={order.id} className={`border-2 ${getStatusColor(order.status)}`}>
+                      <CardContent className="p-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">Order #{order.id}</h4>
+                            <Badge variant="outline" className="text-xs">
+                              {new Date(order.createdAt).toLocaleTimeString()}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Customer: {order.customerName}
+                          </p>
+                          <div className="text-sm">
+                            {order.items.map((item, index) => (
+                              <div key={index} className="flex justify-between">
+                                <span>{item.quantity}x {item.name}</span>
+                                <span>৳{item.price}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex items-center justify-between pt-2 border-t">
+                            <span className="font-medium">Total: ৳{order.totalAmount}</span>
+                            {getNextStatus(order.status) && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleStatusUpdate(order.id, getNextStatus(order.status)!)}
+                                disabled={updateStatusMutation.loading}
+                              >
+                                {updateStatusMutation.loading ? (
+                                  <LoadingSpinner size="sm" />
+                                ) : (
+                                  <>
+                                    <ArrowRight className="w-3 h-3 mr-1" />
+                                    {getNextStatus(order.status)}
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 };

@@ -7,7 +7,9 @@ import {
   Crown,
   BarChart3,
   Settings,
-  Shield
+  Shield,
+  Brain,
+  TestTube
 } from 'lucide-react';
 import {
   Sidebar,
@@ -49,6 +51,16 @@ const navigationItems = [
 ];
 
 const systemItems = [
+  {
+    title: 'AI Configuration',
+    icon: Brain,
+    href: '/admin/ai-config',
+  },
+  {
+    title: 'System Tests',
+    icon: TestTube,
+    href: '/admin/tests',
+  },
   {
     title: 'System Settings',
     icon: Settings,

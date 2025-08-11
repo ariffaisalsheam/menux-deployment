@@ -1,0 +1,246 @@
+package com.menux.menu_x_backend.service;
+
+// import com.menux.menu_x_backend.entity.AIProviderConfig;
+// import com.menux.menu_x_backend.repository.AIProviderConfigRepository;
+// import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+// @Service
+public class AIProviderService {
+
+    @Autowired
+    private AIProviderConfigRepository repository;
+
+    @Autowired
+    private EncryptionService encryptionService;
+
+    private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public String generateMenuDescription(String itemName) {
+        String prompt = "You are an expert food writer for a restaurant menu. Generate a creative and appealing one-sentence description for the following menu item: " + itemName + ". The description should be brief, enticing, and make the customer want to order it.";
+        
+        return callAIWithFallback(prompt, "menu description generation");
+    }
+
+    public String analyzeFeedback(String feedback) {
+        String prompt = "You are an AI assistant for a restaurant manager. Analyze the following customer feedback and provide a one-sentence summary of the overall sentiment (Positive, Negative, or Neutral) and list the key points or suggestions mentioned by the customer. Feedback: '" + feedback + "'";
+        
+        return callAIWithFallback(prompt, "feedback analysis");
+    }
+
+    private String callAIWithFallback(String prompt, String operation) {
+        List<AIProviderConfig> providers = repository.findActiveProvidersOrderedByPriority();
+        
+        if (providers.isEmpty()) {
+            throw new RuntimeException("No active AI providers configured");
+        }
+
+        Exception lastException = null;
+        
+        for (AIProviderConfig provider : providers) {
+            try {
+                String apiKey = encryptionService.decrypt(provider.getEncryptedApiKey());
+                String response = callProvider(provider, apiKey, prompt);
+                
+                if (response != null && !response.trim().isEmpty()) {
+                    return response;
+                }
+            } catch (Exception e) {
+                lastException = e;
+                // Log the error but continue to next provider
+                System.err.println("Provider " + provider.getName() + " failed for " + operation + ": " + e.getMessage());
+            }
+        }
+        
+        throw new RuntimeException("All AI providers failed for " + operation + 
+                                 (lastException != null ? ". Last error: " + lastException.getMessage() : ""));
+    }
+
+    private String callProvider(AIProviderConfig provider, String apiKey, String prompt) throws Exception {
+        switch (provider.getType()) {
+            case GOOGLE_GEMINI:
+                return callGoogleGemini(apiKey, prompt);
+            case OPENROUTER:
+                return callOpenRouter(apiKey, provider.getEndpoint(), prompt);
+            case OPENAI:
+                return callOpenAI(apiKey, prompt);
+            case OPENAI_COMPATIBLE:
+                return callOpenAICompatible(apiKey, provider.getEndpoint(), prompt);
+            case Z_AI_GLM_4_5:
+                return callZAIGLM45(apiKey, provider.getEndpoint(), prompt);
+            default:
+                throw new RuntimeException("Unsupported provider type: " + provider.getType());
+        }
+    }
+
+    private String callGoogleGemini(String apiKey, String prompt) throws Exception {
+        String url = "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=" + apiKey;
+        
+        Map<String, Object> requestBody = new HashMap<>();
+        Map<String, Object> contents = new HashMap<>();
+        Map<String, Object> parts = new HashMap<>();
+        parts.put("text", prompt);
+        contents.put("parts", new Object[]{parts});
+        requestBody.put("contents", new Object[]{contents});
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+
+        if (response.getStatusCode() == HttpStatus.OK) {
+            JsonNode responseJson = objectMapper.readTree(response.getBody());
+            if (responseJson.has("candidates") && responseJson.get("candidates").size() > 0) {
+                JsonNode candidate = responseJson.get("candidates").get(0);
+                if (candidate.has("content") && candidate.get("content").has("parts") && 
+                    candidate.get("content").get("parts").size() > 0) {
+                    return candidate.get("content").get("parts").get(0).get("text").asText();
+                }
+            }
+        }
+        
+        throw new RuntimeException("Invalid response from Gemini API");
+    }
+
+    private String callOpenRouter(String apiKey, String endpoint, String prompt) throws Exception {
+        String url = endpoint != null ? endpoint : "https://openrouter.ai/api/v1/chat/completions";
+        
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", "openai/gpt-3.5-turbo");
+        
+        Map<String, Object> message = new HashMap<>();
+        message.put("role", "user");
+        message.put("content", prompt);
+        requestBody.put("messages", new Object[]{message});
+        requestBody.put("max_tokens", 150);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(apiKey);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+
+        if (response.getStatusCode() == HttpStatus.OK) {
+            JsonNode responseJson = objectMapper.readTree(response.getBody());
+            if (responseJson.has("choices") && responseJson.get("choices").size() > 0) {
+                JsonNode choice = responseJson.get("choices").get(0);
+                if (choice.has("message") && choice.get("message").has("content")) {
+                    return choice.get("message").get("content").asText();
+                }
+            }
+        }
+        
+        throw new RuntimeException("Invalid response from OpenRouter API");
+    }
+
+    private String callOpenAI(String apiKey, String prompt) throws Exception {
+        String url = "https://api.openai.com/v1/chat/completions";
+        
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", "gpt-3.5-turbo");
+        
+        Map<String, Object> message = new HashMap<>();
+        message.put("role", "user");
+        message.put("content", prompt);
+        requestBody.put("messages", new Object[]{message});
+        requestBody.put("max_tokens", 150);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(apiKey);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+
+        if (response.getStatusCode() == HttpStatus.OK) {
+            JsonNode responseJson = objectMapper.readTree(response.getBody());
+            if (responseJson.has("choices") && responseJson.get("choices").size() > 0) {
+                JsonNode choice = responseJson.get("choices").get(0);
+                if (choice.has("message") && choice.get("message").has("content")) {
+                    return choice.get("message").get("content").asText();
+                }
+            }
+        }
+        
+        throw new RuntimeException("Invalid response from OpenAI API");
+    }
+
+    private String callOpenAICompatible(String apiKey, String endpoint, String prompt) throws Exception {
+        if (endpoint == null || endpoint.trim().isEmpty()) {
+            throw new RuntimeException("Endpoint is required for OpenAI Compatible providers");
+        }
+
+        String url = endpoint + "/v1/chat/completions";
+        
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", "gpt-3.5-turbo");
+        
+        Map<String, Object> message = new HashMap<>();
+        message.put("role", "user");
+        message.put("content", prompt);
+        requestBody.put("messages", new Object[]{message});
+        requestBody.put("max_tokens", 150);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(apiKey);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+
+        if (response.getStatusCode() == HttpStatus.OK) {
+            JsonNode responseJson = objectMapper.readTree(response.getBody());
+            if (responseJson.has("choices") && responseJson.get("choices").size() > 0) {
+                JsonNode choice = responseJson.get("choices").get(0);
+                if (choice.has("message") && choice.get("message").has("content")) {
+                    return choice.get("message").get("content").asText();
+                }
+            }
+        }
+        
+        throw new RuntimeException("Invalid response from OpenAI Compatible API");
+    }
+
+    private String callZAIGLM45(String apiKey, String endpoint, String prompt) throws Exception {
+        String url = endpoint != null ? endpoint : "https://api.z.ai/v1/chat/completions";
+        
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", "glm-4.5");
+        
+        Map<String, Object> message = new HashMap<>();
+        message.put("role", "user");
+        message.put("content", prompt);
+        requestBody.put("messages", new Object[]{message});
+        requestBody.put("max_tokens", 150);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(apiKey);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+
+        if (response.getStatusCode() == HttpStatus.OK) {
+            JsonNode responseJson = objectMapper.readTree(response.getBody());
+            if (responseJson.has("choices") && responseJson.get("choices").size() > 0) {
+                JsonNode choice = responseJson.get("choices").get(0);
+                if (choice.has("message") && choice.get("message").has("content")) {
+                    return choice.get("message").get("content").asText();
+                }
+            }
+        }
+        
+        throw new RuntimeException("Invalid response from Z.AI GLM-4.5 API");
+    }
+}

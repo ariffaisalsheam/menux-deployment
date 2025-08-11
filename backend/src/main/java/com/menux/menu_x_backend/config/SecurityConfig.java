@@ -77,7 +77,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/menu/public/**").permitAll()
+                .requestMatchers("/api/menu/restaurant/**").permitAll()
                 .requestMatchers("/api/feedback/public/**").permitAll()
+                .requestMatchers("/api/orders/restaurant/**").permitAll()
                 
                 // Restaurant Owner endpoints
                 .requestMatchers("/api/restaurant/**").hasRole("RESTAURANT_OWNER")

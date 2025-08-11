@@ -67,6 +67,8 @@ export interface AuthResponse {
   fullName: string
   role: 'DINER' | 'RESTAURANT_OWNER' | 'SUPER_ADMIN'
   restaurantId?: number
+  restaurantName?: string
+  subscriptionPlan?: 'BASIC' | 'PRO'
 }
 
 export const authAPI = {
@@ -101,6 +103,11 @@ export const userAPI = {
   deleteUser: async (userId: number) => {
     const response = await api.delete(`/admin/users/${userId}`)
     return response.data
+  },
+
+  getCurrentProfile: async () => {
+    const response = await api.get('/user/profile')
+    return response.data
   }
 }
 
@@ -112,17 +119,22 @@ export const restaurantAPI = {
   },
 
   getRestaurantById: async (id: number) => {
-    const response = await api.get(`/restaurants/${id}`)
+    const response = await api.get(`/admin/restaurants/${id}`)
     return response.data
   },
 
-  updateRestaurant: async (id: number, data: any) => {
-    const response = await api.put(`/restaurants/${id}`, data)
+  updateRestaurant: async (data: any) => {
+    const response = await api.put('/restaurant/current', data)
+    return response.data
+  },
+
+  updateCurrentRestaurant: async (data: any) => {
+    const response = await api.put('/restaurant/current', data)
     return response.data
   },
 
   getCurrentRestaurant: async () => {
-    const response = await api.get('/restaurants/current')
+    const response = await api.get('/restaurant/current')
     return response.data
   }
 }
@@ -130,23 +142,23 @@ export const restaurantAPI = {
 // Menu Management API
 export const menuAPI = {
   getMenuItems: async (restaurantId?: number) => {
-    const url = restaurantId ? `/restaurants/${restaurantId}/menu` : '/menu'
+    const url = restaurantId ? `/menu/restaurant/${restaurantId}/items` : '/menu/manage/items'
     const response = await api.get(url)
     return response.data
   },
 
   createMenuItem: async (data: any) => {
-    const response = await api.post('/menu', data)
+    const response = await api.post('/menu/manage/items', data)
     return response.data
   },
 
   updateMenuItem: async (id: number, data: any) => {
-    const response = await api.put(`/menu/${id}`, data)
+    const response = await api.put(`/menu/manage/items/${id}`, data)
     return response.data
   },
 
   deleteMenuItem: async (id: number) => {
-    const response = await api.delete(`/menu/${id}`)
+    const response = await api.delete(`/menu/manage/items/${id}`)
     return response.data
   }
 }
@@ -154,18 +166,18 @@ export const menuAPI = {
 // Order Management API
 export const orderAPI = {
   getOrders: async (restaurantId?: number) => {
-    const url = restaurantId ? `/restaurants/${restaurantId}/orders` : '/orders'
+    const url = restaurantId ? `/orders/restaurant/${restaurantId}` : '/orders/manage'
     const response = await api.get(url)
     return response.data
   },
 
   getOrderById: async (id: number) => {
-    const response = await api.get(`/orders/${id}`)
+    const response = await api.get(`/orders/manage/${id}`)
     return response.data
   },
 
   updateOrderStatus: async (id: number, status: string) => {
-    const response = await api.put(`/orders/${id}/status`, { status })
+    const response = await api.put(`/orders/manage/${id}/status`, { status })
     return response.data
   }
 }
@@ -193,6 +205,49 @@ export const aiAPI = {
 
   analyzeFeedback: async (feedback: string) => {
     const response = await api.post('/ai/feedback-analysis', { feedback })
+    return response.data
+  }
+}
+
+// AI Configuration API (Admin only)
+export const aiConfigAPI = {
+  getAllProviders: async () => {
+    const response = await api.get('/admin/ai-config')
+    return response.data
+  },
+
+  getActiveProviders: async () => {
+    const response = await api.get('/admin/ai-config/active')
+    return response.data
+  },
+
+  getProviderById: async (id: number) => {
+    const response = await api.get(`/admin/ai-config/${id}`)
+    return response.data
+  },
+
+  createProvider: async (data: any) => {
+    const response = await api.post('/admin/ai-config', data)
+    return response.data
+  },
+
+  updateProvider: async (id: number, data: any) => {
+    const response = await api.put(`/admin/ai-config/${id}`, data)
+    return response.data
+  },
+
+  deleteProvider: async (id: number) => {
+    const response = await api.delete(`/admin/ai-config/${id}`)
+    return response.data
+  },
+
+  testProvider: async (id: number) => {
+    const response = await api.post(`/admin/ai-config/${id}/test`)
+    return response.data
+  },
+
+  setPrimaryProvider: async (id: number) => {
+    const response = await api.post(`/admin/ai-config/${id}/set-primary`)
     return response.data
   }
 }

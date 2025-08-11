@@ -4,13 +4,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
 } from '../ui/dropdown-menu';
 import { useAuth } from '../../contexts/AuthContext';
+import { userAPI } from '../../services/api';
+import { useApi, useApiMutation } from '../../hooks/useApi';
+import { LoadingSkeleton } from '../common/LoadingSpinner';
+import { ErrorDisplay } from '../common/ErrorDisplay';
 
 interface UserData {
   id: number;
@@ -25,80 +29,60 @@ interface UserData {
   lastLogin: string;
 }
 
-const mockUsers: UserData[] = [
-  {
-    id: 1,
-    username: 'ahmed_kitchen',
-    email: 'ahmed@kitchen.com',
-    fullName: 'Ahmed Rahman',
-    role: 'RESTAURANT_OWNER',
-    restaurantName: 'Ahmed\'s Kitchen',
-    subscriptionPlan: 'PRO',
-    status: 'active',
-    joinDate: '2024-01-15',
-    lastLogin: '2024-08-11 14:30'
-  },
-  {
-    id: 2,
-    username: 'spice_garden',
-    email: 'owner@spicegarden.com',
-    fullName: 'Fatima Khan',
-    role: 'RESTAURANT_OWNER',
-    restaurantName: 'Spice Garden',
-    subscriptionPlan: 'BASIC',
-    status: 'active',
-    joinDate: '2024-02-20',
-    lastLogin: '2024-08-11 09:15'
-  },
-  {
-    id: 3,
-    username: 'testuser456',
-    email: 'testuser456@example.com',
-    fullName: 'Test User 456',
-    role: 'RESTAURANT_OWNER',
-    restaurantName: 'Test Restaurant 456',
-    subscriptionPlan: 'BASIC',
-    status: 'active',
-    joinDate: '2024-08-01',
-    lastLogin: '2024-08-11 16:45'
-  },
-  {
-    id: 4,
-    username: 'admin_user',
-    email: 'admin@menux.com',
-    fullName: 'System Administrator',
-    role: 'SUPER_ADMIN',
-    status: 'active',
-    joinDate: '2024-01-01',
-    lastLogin: '2024-08-11 17:00'
-  }
-];
+// ...removed unused mockUsers...
 
 export const UserManagement: React.FC = () => {
-  const { updateUserPlan, switchUserContext } = useAuth();
-  const [users, setUsers] = useState<UserData[]>(mockUsers);
+  const { updateUserPlan, switchUserContext, user: currentUser } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [planFilter, setPlanFilter] = useState('all');
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.restaurantName?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    const matchesPlan = planFilter === 'all' || user.subscriptionPlan === planFilter;
+  // Fetch users
+  const {
+    data: users = [],
+    loading,
+    error,
+    refetch
+  } = useApi<UserData[]>(() => userAPI.getAllUsers());
+
+  // Update user plan mutation
+  const updatePlanMutation = useApiMutation(
+    ({ userId, plan }: { userId: number; plan: 'BASIC' | 'PRO' }) =>
+      userAPI.updateUserPlan(userId, plan),
+    {
+      onSuccess: () => refetch()
+    }
+  );
+
+  // Delete user mutation
+  const deleteMutation = useApiMutation(
+    (userId: number) => userAPI.deleteUser(userId),
+    {
+      onSuccess: () => refetch()
+    }
+  );
+
+  const safeUsers = users ?? [];
+  const filteredUsers = safeUsers.filter(user => {
+    const matchesSearch = user?.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user?.restaurantName?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = roleFilter === 'all' || user?.role === roleFilter;
+    const matchesPlan = planFilter === 'all' || user?.subscriptionPlan === planFilter;
     return matchesSearch && matchesRole && matchesPlan;
   });
 
-  const handlePlanChange = (userId: number, newPlan: 'BASIC' | 'PRO') => {
-    setUsers(users.map(user => 
-      user.id === userId ? { ...user, subscriptionPlan: newPlan } : user
-    ));
-    
-    // If this is the current test user, update the context
-    const user = users.find(u => u.id === userId);
-    if (user && user.username === 'testuser456') {
-      updateUserPlan(newPlan);
+  const handlePlanChange = async (userId: number, newPlan: 'BASIC' | 'PRO') => {
+    try {
+      await updatePlanMutation.mutate({ userId, plan: newPlan });
+
+      // If this is the current user, update the context
+  const user = safeUsers.find(u => u.id === userId);
+      if (user && currentUser && user.username === currentUser.username) {
+        updateUserPlan(newPlan);
+      }
+    } catch (error) {
+      console.error('Failed to update user plan:', error);
     }
   };
 
@@ -120,9 +104,29 @@ export const UserManagement: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = (userId: number) => {
-    setUsers(users.filter(user => user.id !== userId));
+  const handleDeleteUser = async (userId: number) => {
+    try {
+      await deleteMutation.mutate(userId);
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <LoadingSkeleton lines={2} className="w-64" />
+          <LoadingSkeleton lines={1} className="w-32" />
+        </div>
+        <LoadingSkeleton lines={8} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <ErrorDisplay error={error} onRetry={refetch} />;
+  }
 
   return (
     <div className="space-y-6">
@@ -145,7 +149,7 @@ export const UserManagement: React.FC = () => {
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-2xl font-bold">{users.length}</p>
+              <p className="text-2xl font-bold">{safeUsers.length}</p>
               <p className="text-sm text-muted-foreground">Total Users</p>
             </div>
           </CardContent>
@@ -154,7 +158,7 @@ export const UserManagement: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold text-green-600">
-                {users.filter(u => u.status === 'active').length}
+                {safeUsers.filter(u => u.status === 'active').length}
               </p>
               <p className="text-sm text-muted-foreground">Active Users</p>
             </div>
@@ -164,7 +168,7 @@ export const UserManagement: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold text-blue-600">
-                {users.filter(u => u.subscriptionPlan === 'PRO').length}
+                {safeUsers.filter(u => u.subscriptionPlan === 'PRO').length}
               </p>
               <p className="text-sm text-muted-foreground">Pro Subscribers</p>
             </div>
@@ -174,7 +178,7 @@ export const UserManagement: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold text-purple-600">
-                {users.filter(u => u.role === 'SUPER_ADMIN').length}
+                {safeUsers.filter(u => u.role === 'SUPER_ADMIN').length}
               </p>
               <p className="text-sm text-muted-foreground">Administrators</p>
             </div>

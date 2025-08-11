@@ -69,6 +69,8 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+  flyway:
+    enabled: false
   security:
     cors:
       allowed-origins: "http://localhost:5173"

@@ -41,7 +41,9 @@ export default function LoginForm() {
         email: response.email,
         fullName: response.fullName,
         role: response.role,
-        restaurantId: response.restaurantId
+        restaurantId: response.restaurantId,
+        restaurantName: response.restaurantName,
+        subscriptionPlan: response.subscriptionPlan
       })
 
       // Redirect based on role

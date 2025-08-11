@@ -4,6 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
+import { restaurantAPI } from '../../services/api';
+import { useApi } from '../../hooks/useApi';
+import { LoadingSkeleton } from '../common/LoadingSpinner';
+import { ErrorDisplay } from '../common/ErrorDisplay';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -25,61 +29,45 @@ interface Restaurant {
   monthlyRevenue: number;
 }
 
-const mockRestaurants: Restaurant[] = [
-  {
-    id: 1,
-    name: 'Ahmed\'s Kitchen',
-    owner: 'Ahmed Rahman',
-    email: 'ahmed@kitchen.com',
-    plan: 'PRO',
-    status: 'active',
-    address: '123 Main St, Dhaka',
-    phone: '+880 1234-567890',
-    joinDate: '2024-01-15',
-    totalOrders: 1247,
-    monthlyRevenue: 45600
-  },
-  {
-    id: 2,
-    name: 'Spice Garden',
-    owner: 'Fatima Khan',
-    email: 'owner@spicegarden.com',
-    plan: 'BASIC',
-    status: 'active',
-    address: '456 Food St, Dhaka',
-    phone: '+880 1234-567891',
-    joinDate: '2024-02-20',
-    totalOrders: 523,
-    monthlyRevenue: 18200
-  },
-  {
-    id: 3,
-    name: 'Test Restaurant 456',
-    owner: 'Test User 456',
-    email: 'testuser456@example.com',
-    plan: 'BASIC',
-    status: 'active',
-    address: '789 Test Ave, Dhaka',
-    phone: '+880 1234-567892',
-    joinDate: '2024-08-01',
-    totalOrders: 89,
-    monthlyRevenue: 3200
-  }
-];
+// ...removed unused mockRestaurants...
 
 export const RestaurantManagement: React.FC = () => {
-  const [restaurants, setRestaurants] = useState<Restaurant[]>(mockRestaurants);
   const [searchTerm, setSearchTerm] = useState('');
   const [planFilter, setPlanFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const filteredRestaurants = restaurants.filter(restaurant => {
+  // Fetch restaurants
+  const {
+    data: restaurants = [],
+    loading,
+    error,
+    refetch
+  } = useApi<Restaurant[]>(() => restaurantAPI.getAllRestaurants());
+
+  const safeRestaurants = restaurants ?? [];
+  const filteredRestaurants = safeRestaurants.filter(restaurant => {
     const matchesSearch = restaurant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          restaurant.owner.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesPlan = planFilter === 'all' || restaurant.plan === planFilter;
     const matchesStatus = statusFilter === 'all' || restaurant.status === statusFilter;
     return matchesSearch && matchesPlan && matchesStatus;
   });
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <LoadingSkeleton lines={2} className="w-64" />
+          <LoadingSkeleton lines={1} className="w-32" />
+        </div>
+        <LoadingSkeleton lines={8} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <ErrorDisplay error={error} onRetry={refetch} />;
+  }
 
   return (
     <div className="space-y-6">
@@ -98,7 +86,7 @@ export const RestaurantManagement: React.FC = () => {
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-2xl font-bold">{restaurants.length}</p>
+              <p className="text-2xl font-bold">{safeRestaurants.length}</p>
               <p className="text-sm text-muted-foreground">Total Restaurants</p>
             </div>
           </CardContent>
@@ -107,7 +95,7 @@ export const RestaurantManagement: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold text-green-600">
-                {restaurants.filter(r => r.status === 'active').length}
+                {safeRestaurants.filter(r => r.status === 'active').length}
               </p>
               <p className="text-sm text-muted-foreground">Active</p>
             </div>
@@ -117,7 +105,7 @@ export const RestaurantManagement: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold text-blue-600">
-                {restaurants.filter(r => r.plan === 'PRO').length}
+                {safeRestaurants.filter(r => r.plan === 'PRO').length}
               </p>
               <p className="text-sm text-muted-foreground">Pro Plans</p>
             </div>
@@ -127,7 +115,7 @@ export const RestaurantManagement: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold text-purple-600">
-                ৳{restaurants.reduce((sum, r) => sum + r.monthlyRevenue, 0).toLocaleString()}
+                ৳{safeRestaurants.reduce((sum, r) => sum + r.monthlyRevenue, 0).toLocaleString()}
               </p>
               <p className="text-sm text-muted-foreground">Total Revenue</p>
             </div>

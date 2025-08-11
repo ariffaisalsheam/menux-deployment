@@ -5,6 +5,10 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
+import { orderAPI } from '../../services/api';
+import { useApi } from '../../hooks/useApi';
+import { LoadingSkeleton } from '../common/LoadingSpinner';
+import { ErrorDisplay } from '../common/ErrorDisplay';
 
 interface Order {
   id: string;
@@ -17,82 +21,57 @@ interface Order {
   paymentMethod: string;
 }
 
-const mockOrders: Order[] = [
-  {
-    id: 'ORD-001',
-    customerName: 'Ahmed Rahman',
-    items: ['Chicken Biryani', 'Beef Bhuna', 'Lassi'],
-    total: 850,
-    status: 'completed',
-    date: '2024-08-11',
-    time: '12:30 PM',
-    paymentMethod: 'Cash'
-  },
-  {
-    id: 'ORD-002',
-    customerName: 'Fatima Khan',
-    items: ['Fish Curry', 'Rice', 'Vegetable Samosa'],
-    total: 420,
-    status: 'completed',
-    date: '2024-08-11',
-    time: '1:15 PM',
-    paymentMethod: 'bKash'
-  },
-  {
-    id: 'ORD-003',
-    customerName: 'Mohammad Ali',
-    items: ['Chicken Biryani', 'Raita'],
-    total: 380,
-    status: 'cancelled',
-    date: '2024-08-10',
-    time: '7:45 PM',
-    paymentMethod: 'Card'
-  },
-  {
-    id: 'ORD-004',
-    customerName: 'Rashida Begum',
-    items: ['Beef Bhuna', 'Naan', 'Tea'],
-    total: 520,
-    status: 'completed',
-    date: '2024-08-10',
-    time: '8:20 PM',
-    paymentMethod: 'Nagad'
-  },
-  {
-    id: 'ORD-005',
-    customerName: 'Karim Uddin',
-    items: ['Fish Curry', 'Rice', 'Salad'],
-    total: 350,
-    status: 'completed',
-    date: '2024-08-09',
-    time: '2:10 PM',
-    paymentMethod: 'Cash'
-  }
-];
-
 export const OrderHistory: React.FC = () => {
   const { user } = useAuth();
-  const [orders] = useState<Order[]>(mockOrders);
+
+  // Fetch orders
+  const {
+    data: orders = [],
+    loading,
+    error,
+    refetch
+  } = useApi<Order[]>(() => orderAPI.getOrders());
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
 
   const isPro = user?.subscriptionPlan === 'PRO';
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.customerName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    const matchesDate = dateFilter === 'all' || order.date === dateFilter;
+  const filteredOrders = (orders || []).filter(order => {
+    const matchesSearch = order?.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         order?.customerName?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || order?.status === statusFilter;
+    const matchesDate = dateFilter === 'all' || order?.date === dateFilter;
     return matchesSearch && matchesStatus && matchesDate;
   });
 
-  const totalRevenue = filteredOrders
-    .filter(order => order.status === 'completed')
-    .reduce((sum, order) => sum + order.total, 0);
+  const totalRevenue = (filteredOrders || [])
+    .filter(order => order?.status === 'completed')
+    .reduce((sum, order) => sum + (order?.total || 0), 0);
 
-  const completedOrders = filteredOrders.filter(order => order.status === 'completed').length;
-  const cancelledOrders = filteredOrders.filter(order => order.status === 'cancelled').length;
+  const completedOrders = (filteredOrders || []).filter(order => order?.status === 'completed').length;
+  const cancelledOrders = (filteredOrders || []).filter(order => order?.status === 'cancelled').length;
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <LoadingSkeleton lines={2} className="w-64" />
+          <LoadingSkeleton lines={1} className="w-32" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <LoadingSkeleton key={i} lines={3} />
+          ))}
+        </div>
+        <LoadingSkeleton lines={6} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <ErrorDisplay error={error} onRetry={refetch} />;
+  }
 
   return (
     <div className="space-y-6">

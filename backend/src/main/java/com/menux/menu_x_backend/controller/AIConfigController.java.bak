@@ -1,0 +1,70 @@
+package com.menux.menu_x_backend.controller;
+
+import com.menux.menu_x_backend.dto.ai.*;
+import com.menux.menu_x_backend.service.AIConfigService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+// @RestController
+// @RequestMapping("/api/admin/ai-config")
+// @PreAuthorize("hasRole('SUPER_ADMIN')")
+public class AIConfigController {
+
+    @Autowired
+    private AIConfigService aiConfigService;
+
+    @GetMapping
+    public ResponseEntity<List<AIProviderConfigDTO>> getAllProviders() {
+        List<AIProviderConfigDTO> providers = aiConfigService.getAllProviders();
+        return ResponseEntity.ok(providers);
+    }
+
+    @GetMapping("/active")
+    public ResponseEntity<List<AIProviderConfigDTO>> getActiveProviders() {
+        List<AIProviderConfigDTO> providers = aiConfigService.getActiveProviders();
+        return ResponseEntity.ok(providers);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<AIProviderConfigDTO> getProviderById(@PathVariable Long id) {
+        AIProviderConfigDTO provider = aiConfigService.getProviderById(id);
+        return ResponseEntity.ok(provider);
+    }
+
+    @PostMapping
+    public ResponseEntity<AIProviderConfigDTO> createProvider(@Valid @RequestBody CreateAIProviderRequest request) {
+        AIProviderConfigDTO provider = aiConfigService.createProvider(request);
+        return ResponseEntity.ok(provider);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<AIProviderConfigDTO> updateProvider(
+            @PathVariable Long id, 
+            @Valid @RequestBody UpdateAIProviderRequest request) {
+        AIProviderConfigDTO provider = aiConfigService.updateProvider(id, request);
+        return ResponseEntity.ok(provider);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteProvider(@PathVariable Long id) {
+        aiConfigService.deleteProvider(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/test")
+    public ResponseEntity<AIProviderTestResult> testProvider(@PathVariable Long id) {
+        AIProviderTestResult result = aiConfigService.testProvider(id);
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/{id}/set-primary")
+    public ResponseEntity<AIProviderConfigDTO> setPrimaryProvider(@PathVariable Long id) {
+        AIProviderConfigDTO provider = aiConfigService.setPrimaryProvider(id);
+        return ResponseEntity.ok(provider);
+    }
+}

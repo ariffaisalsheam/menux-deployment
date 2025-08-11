@@ -51,5 +51,22 @@ public class DataInitializer implements CommandLineRunner {
             System.out.println("Password: password123");
             System.out.println("Restaurant: Test Restaurant");
         }
+
+        // Create a test super admin if it doesn't exist
+        if (!userRepository.existsByUsername("admin")) {
+            User adminUser = new User();
+            adminUser.setUsername("admin");
+            adminUser.setEmail("admin@menux.com");
+            adminUser.setPassword(passwordEncoder.encode("admin123"));
+            adminUser.setFullName("Super Admin");
+            adminUser.setPhoneNumber("+8801234567891");
+            adminUser.setRole(User.Role.SUPER_ADMIN);
+
+            userRepository.save(adminUser);
+
+            System.out.println("Super Admin created:");
+            System.out.println("Username: admin");
+            System.out.println("Password: admin123");
+        }
     }
 }

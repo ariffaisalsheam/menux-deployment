@@ -6,6 +6,8 @@ import { UserManagement } from '../components/admin/UserManagement';
 import { RestaurantManagement } from '../components/admin/RestaurantManagement';
 import { PlanManagement } from '../components/admin/PlanManagement';
 import { PlatformAnalytics } from '../components/admin/PlatformAnalytics';
+import { AIConfiguration } from '../components/admin/AIConfiguration';
+import { UserJourneyTests } from '../tests/UserJourneyTests';
 
 
 const AdminDashboard: React.FC = () => {
@@ -17,6 +19,8 @@ const AdminDashboard: React.FC = () => {
         <Route path="/restaurants" element={<RestaurantManagement />} />
         <Route path="/plans" element={<PlanManagement />} />
         <Route path="/analytics" element={<PlatformAnalytics />} />
+        <Route path="/ai-config" element={<AIConfiguration />} />
+        <Route path="/tests" element={<UserJourneyTests />} />
 
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>

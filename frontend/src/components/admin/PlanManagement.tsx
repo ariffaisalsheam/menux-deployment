@@ -1,8 +1,7 @@
 import React from 'react';
-import { Crown, TrendingUp, Users, DollarSign } from 'lucide-react';
+import { Crown, Users, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
 
 export const PlanManagement: React.FC = () => {
   return (

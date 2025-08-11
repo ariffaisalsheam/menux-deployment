@@ -1,8 +1,8 @@
 import React from 'react';
-import { 
-  ShoppingCart, 
-  DollarSign, 
-  Users, 
+import {
+  ShoppingCart,
+  DollarSign,
+  Users,
   TrendingUp,
   Clock,
   Star,
@@ -11,6 +11,10 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
+import { analyticsAPI } from '../../services/api';
+import { useApi } from '../../hooks/useApi';
+import { LoadingSkeleton } from '../common/LoadingSpinner';
+import { ErrorDisplay } from '../common/ErrorDisplay';
 
 interface StatCardProps {
   title: string;
@@ -54,46 +58,95 @@ const StatCard: React.FC<StatCardProps> = ({
   );
 };
 
+interface RestaurantAnalytics {
+  revenue: { current: number; previous: number; change: number };
+  orders: { current: number; previous: number; change: number };
+  customers: { current: number; previous: number; change: number };
+  rating: { current: number; previous: number; change: number };
+  liveOrders: number;
+  topSellingItems: Array<{ name: string; orders: number; revenue: number }>;
+  weeklyTrends: Array<{ period: string; revenue: number; orders: number; change: number }>;
+}
+
 export const DashboardOverview: React.FC = () => {
   const { user } = useAuth();
   const isPro = user?.subscriptionPlan === 'PRO';
 
-  // Mock data - in real app, this would come from API
+  // Fetch real analytics data
+  const {
+    data: analytics,
+    loading,
+    error,
+    refetch
+  } = useApi<RestaurantAnalytics>(() => analyticsAPI.getRestaurantAnalytics());
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <LoadingSkeleton lines={2} className="w-64" />
+          <LoadingSkeleton lines={1} className="w-24" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <LoadingSkeleton key={i} lines={4} />
+          ))}
+        </div>
+        {isPro && (
+          <div className="grid gap-4 md:grid-cols-2">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <LoadingSkeleton key={i} lines={4} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (error) {
+    return <ErrorDisplay error={error} onRetry={refetch} />;
+  }
+
+  if (!analytics) {
+    return <ErrorDisplay error="Analytics data not available" onRetry={refetch} />;
+  }
+
+  // Format the data for display
   const stats = [
     {
       title: 'Total Orders',
-      value: '1,234',
+      value: Math.round(analytics.orders.current).toLocaleString(),
       description: 'from last month',
       icon: ShoppingCart,
-      trend: '+12%'
+      trend: analytics.orders.change > 0 ? `+${analytics.orders.change.toFixed(1)}%` : `${analytics.orders.change.toFixed(1)}%`
     },
     {
       title: 'Revenue',
-      value: '৳45,231',
+      value: `৳${Math.round(analytics.revenue.current).toLocaleString()}`,
       description: 'from last month',
       icon: DollarSign,
-      trend: '+8%'
+      trend: analytics.revenue.change > 0 ? `+${analytics.revenue.change.toFixed(1)}%` : `${analytics.revenue.change.toFixed(1)}%`
     },
     {
       title: 'Customers',
-      value: '573',
+      value: Math.round(analytics.customers.current).toLocaleString(),
       description: 'active customers',
       icon: Users,
-      trend: '+15%'
+      trend: analytics.customers.change > 0 ? `+${analytics.customers.change.toFixed(1)}%` : `${analytics.customers.change.toFixed(1)}%`
     },
     {
       title: 'Avg. Rating',
-      value: '4.8',
-      description: 'from 127 reviews',
+      value: analytics.rating.current.toFixed(1),
+      description: 'from reviews',
       icon: Star,
-      trend: '+0.2'
+      trend: analytics.rating.change > 0 ? `+${analytics.rating.change.toFixed(1)}%` : `${analytics.rating.change.toFixed(1)}%`
     }
   ];
 
   const proStats = [
     {
       title: 'Live Orders',
-      value: '8',
+      value: analytics.liveOrders.toString(),
       description: 'orders in progress',
       icon: Clock,
       isPro: true

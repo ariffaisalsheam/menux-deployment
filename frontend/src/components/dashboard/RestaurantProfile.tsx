@@ -5,43 +5,120 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
+import { restaurantAPI } from '../../services/api';
+import { useApi, useApiMutation } from '../../hooks/useApi';
+import { LoadingSpinner, LoadingSkeleton } from '../common/LoadingSpinner';
+import { ErrorDisplay } from '../common/ErrorDisplay';
+
+interface RestaurantData {
+  id: number;
+  name: string;
+  description: string;
+  address: string;
+  phoneNumber: string;
+  email: string;
+  openingHours: string;
+  cuisine: string;
+  subscriptionPlan: 'BASIC' | 'PRO';
+}
 
 export const RestaurantProfile: React.FC = () => {
-  const { user } = useAuth();
+  useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    name: user?.restaurantName || '',
-    address: '123 Main Street, Dhaka, Bangladesh',
-    phone: '+880 1234-567890',
-    email: 'restaurant@example.com',
-    description: 'A delightful restaurant serving authentic Bangladeshi cuisine with modern twists.',
-    openingHours: '10:00 AM - 11:00 PM',
-    cuisine: 'Bangladeshi, Indian, Continental'
+    name: '',
+    address: '',
+    phoneNumber: '',
+    email: '',
+    description: '',
+    openingHours: '',
+    cuisine: ''
   });
+
+  // Fetch restaurant data
+  const {
+    data: restaurant,
+    loading,
+    error,
+    refetch
+  } = useApi<RestaurantData>(
+    () => restaurantAPI.getCurrentRestaurant(),
+    {
+      onSuccess: (data) => {
+        if (data) {
+          setFormData({
+            name: data.name || '',
+            address: data.address || '',
+            phoneNumber: data.phoneNumber || '',
+            email: data.email || '',
+            description: data.description || '',
+            openingHours: data.openingHours || '',
+            cuisine: data.cuisine || ''
+          });
+        }
+      }
+    }
+  );
+
+  // Update restaurant mutation
+  const updateMutation = useApiMutation(
+    (data: Partial<RestaurantData>) => restaurantAPI.updateCurrentRestaurant(data),
+    {
+      onSuccess: () => {
+        setIsEditing(false);
+        refetch();
+      }
+    }
+  );
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = () => {
-    // TODO: Implement API call to save restaurant profile
-    console.log('Saving restaurant profile:', formData);
-    setIsEditing(false);
+  const handleSave = async () => {
+    try {
+      await updateMutation.mutate(formData);
+    } catch (error) {
+      console.error('Failed to save restaurant profile:', error);
+    }
   };
 
   const handleCancel = () => {
-    // Reset form data
-    setFormData({
-      name: user?.restaurantName || '',
-      address: '123 Main Street, Dhaka, Bangladesh',
-      phone: '+880 1234-567890',
-      email: 'restaurant@example.com',
-      description: 'A delightful restaurant serving authentic Bangladeshi cuisine with modern twists.',
-      openingHours: '10:00 AM - 11:00 PM',
-      cuisine: 'Bangladeshi, Indian, Continental'
-    });
+    if (restaurant) {
+      setFormData({
+        name: restaurant.name || '',
+        address: restaurant.address || '',
+        phoneNumber: restaurant.phoneNumber || '',
+        email: restaurant.email || '',
+        description: restaurant.description || '',
+        openingHours: restaurant.openingHours || '',
+        cuisine: restaurant.cuisine || ''
+      });
+    }
     setIsEditing(false);
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <LoadingSkeleton lines={2} className="w-64" />
+          </div>
+          <LoadingSkeleton lines={1} className="w-32" />
+        </div>
+        <LoadingSkeleton lines={8} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <ErrorDisplay error={error} onRetry={refetch} />;
+  }
+
+  if (!restaurant) {
+    return <ErrorDisplay error="Restaurant data not found" onRetry={refetch} />;
+  }
 
   return (
     <div className="space-y-6">
@@ -54,8 +131,8 @@ export const RestaurantProfile: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={user?.subscriptionPlan === 'PRO' ? 'default' : 'secondary'}>
-            {user?.subscriptionPlan || 'Basic'} Plan
+          <Badge variant={restaurant.subscriptionPlan === 'PRO' ? 'default' : 'secondary'}>
+            {restaurant.subscriptionPlan} Plan
           </Badge>
           {!isEditing ? (
             <Button onClick={() => setIsEditing(true)}>
@@ -64,11 +141,22 @@ export const RestaurantProfile: React.FC = () => {
             </Button>
           ) : (
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleCancel}>
+              <Button
+                variant="outline"
+                onClick={handleCancel}
+                disabled={updateMutation.loading}
+              >
                 Cancel
               </Button>
-              <Button onClick={handleSave}>
-                <Save className="w-4 h-4 mr-2" />
+              <Button
+                onClick={handleSave}
+                disabled={updateMutation.loading}
+              >
+                {updateMutation.loading ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
                 Save Changes
               </Button>
             </div>
@@ -164,12 +252,12 @@ export const RestaurantProfile: React.FC = () => {
               </label>
               {isEditing ? (
                 <Input
-                  value={formData.phone}
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
+                  value={formData.phoneNumber}
+                  onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
                   placeholder="Enter phone number"
                 />
               ) : (
-                <p className="text-sm text-muted-foreground mt-1">{formData.phone}</p>
+                <p className="text-sm text-muted-foreground mt-1">{formData.phoneNumber}</p>
               )}
             </div>
           </div>

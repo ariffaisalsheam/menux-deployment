@@ -2,16 +2,13 @@ import React from 'react';
 import { Users, Store, Crown, DollarSign, TrendingUp, Activity, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
+import { analyticsAPI } from '../../services/api';
+import { useApi } from '../../hooks/useApi';
+import { LoadingSkeleton } from '../common/LoadingSpinner';
+import { ErrorDisplay } from '../common/ErrorDisplay';
 import { Button } from '../ui/button';
 
-const platformStats = {
-  totalUsers: 1247,
-  totalRestaurants: 523,
-  proSubscriptions: 89,
-  monthlyRevenue: 133500,
-  activeUsers: 892,
-  systemHealth: 99.8
-};
+// ...removed unused mock stats...
 
 const recentActivity = [
   { type: 'user_registered', message: 'New restaurant owner registered: Ahmed\'s Kitchen', time: '2 minutes ago' },
@@ -28,8 +25,51 @@ const quickActions = [
   { title: 'Send Notifications', description: 'Send platform-wide notifications', action: 'Send Message' }
 ];
 
+interface PlatformAnalytics {
+  totalUsers: number;
+  totalRestaurants: number;
+  proSubscriptions: number;
+  basicSubscriptions: number;
+  monthlyRevenue: number;
+  activeUsers: number;
+  systemHealth: number;
+  totalOrders: number;
+  conversionRate: number;
+}
+
 export const AdminOverview: React.FC = () => {
-  const StatCard = ({ 
+  // Fetch platform analytics
+  const {
+    data: analytics,
+    loading,
+    error,
+    refetch
+  } = useApi<PlatformAnalytics>(() => analyticsAPI.getPlatformAnalytics());
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <LoadingSkeleton lines={2} className="w-64" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <LoadingSkeleton key={i} lines={4} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return <ErrorDisplay error={error} onRetry={refetch} />;
+  }
+
+  if (!analytics) {
+    return <ErrorDisplay error="Analytics data not available" onRetry={refetch} />;
+  }
+
+  const StatCard = ({
     title, 
     value, 
     icon: Icon, 
@@ -95,38 +135,38 @@ export const AdminOverview: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <StatCard
           title="Total Users"
-          value={platformStats.totalUsers}
+          value={analytics.totalUsers}
           icon={Users}
           change={12.5}
         />
         <StatCard
           title="Restaurants"
-          value={platformStats.totalRestaurants}
+          value={analytics.totalRestaurants}
           icon={Store}
           change={8.2}
         />
         <StatCard
           title="Pro Subscriptions"
-          value={platformStats.proSubscriptions}
+          value={analytics.proSubscriptions}
           icon={Crown}
           change={15.3}
         />
         <StatCard
           title="Monthly Revenue"
-          value={platformStats.monthlyRevenue}
+          value={analytics.monthlyRevenue}
           icon={DollarSign}
           format="currency"
           change={22.1}
         />
         <StatCard
           title="Active Users"
-          value={platformStats.activeUsers}
+          value={analytics.activeUsers}
           icon={Activity}
           change={5.7}
         />
         <StatCard
           title="System Health"
-          value={platformStats.systemHealth}
+          value={analytics.systemHealth}
           icon={TrendingUp}
           format="percentage"
         />

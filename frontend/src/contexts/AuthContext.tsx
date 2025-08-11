@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { userAPI } from '../services/api'
 
 export interface User {
   id: number
@@ -128,15 +129,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const refreshUser = async () => {
-    // In a real app, this would fetch fresh user data from the API
-    // For now, we'll just update from localStorage
-    const storedUser = localStorage.getItem('user')
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser)
-        setUser(parsedUser)
-      } catch (error) {
-        console.error('Error parsing stored user data:', error)
+    try {
+      // Fetch fresh user data from the API
+      const freshUserData = await userAPI.getCurrentProfile()
+      setUser(freshUserData)
+      localStorage.setItem('user', JSON.stringify(freshUserData))
+    } catch (error) {
+      console.error('Error refreshing user data:', error)
+      // Fallback to localStorage data
+      const storedUser = localStorage.getItem('user')
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser)
+          setUser(parsedUser)
+        } catch (parseError) {
+          console.error('Error parsing stored user data:', parseError)
+        }
       }
     }
   }
