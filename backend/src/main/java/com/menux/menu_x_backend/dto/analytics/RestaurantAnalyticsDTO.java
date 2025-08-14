@@ -10,6 +10,7 @@ public class RestaurantAnalyticsDTO {
     private List<TopSellingItem> topSellingItems;
     private List<WeeklyTrend> weeklyTrends;
     private Long liveOrders;
+    private List<DailyRevenuePoint> dailyRevenueTrend;
 
     // Constructors
     public RestaurantAnalyticsDTO() {}
@@ -47,6 +48,9 @@ public class RestaurantAnalyticsDTO {
 
     public Long getLiveOrders() { return liveOrders; }
     public void setLiveOrders(Long liveOrders) { this.liveOrders = liveOrders; }
+
+    public List<DailyRevenuePoint> getDailyRevenueTrend() { return dailyRevenueTrend; }
+    public void setDailyRevenueTrend(List<DailyRevenuePoint> dailyRevenueTrend) { this.dailyRevenueTrend = dailyRevenueTrend; }
 
     // Inner classes
     public static class MetricData {
@@ -121,5 +125,23 @@ public class RestaurantAnalyticsDTO {
 
         public Double getChange() { return change; }
         public void setChange(Double change) { this.change = change; }
+    }
+
+    public static class DailyRevenuePoint {
+        private String date; // ISO yyyy-MM-dd or friendly label
+        private Double revenue;
+
+        public DailyRevenuePoint() {}
+
+        public DailyRevenuePoint(String date, Double revenue) {
+            this.date = date;
+            this.revenue = revenue;
+        }
+
+        public String getDate() { return date; }
+        public void setDate(String date) { this.date = date; }
+
+        public Double getRevenue() { return revenue; }
+        public void setRevenue(Double revenue) { this.revenue = revenue; }
     }
 }

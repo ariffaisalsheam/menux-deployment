@@ -4,13 +4,14 @@ import com.menux.menu_x_backend.dto.ai.AIProviderTestResult;
 import com.menux.menu_x_backend.entity.AIProviderConfig;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+
 
 @Service
 public class AIProviderTestService {
@@ -18,19 +19,22 @@ public class AIProviderTestService {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public AIProviderTestResult testProvider(AIProviderConfig.ProviderType type, String apiKey, String endpoint, String settings) {
+    @Autowired
+    private ExternalApiResilienceService resilienceService;
+
+    public AIProviderTestResult testProvider(AIProviderConfig.ProviderType type, String apiKey, String endpoint, String settings, String model) {
         try {
             switch (type) {
                 case GOOGLE_GEMINI:
-                    return testGoogleGemini(apiKey);
+                    return testGoogleGemini(apiKey, model);
                 case OPENROUTER:
-                    return testOpenRouter(apiKey, endpoint);
+                    return testOpenRouter(apiKey, endpoint, model);
                 case OPENAI:
-                    return testOpenAI(apiKey);
+                    return testOpenAI(apiKey, model);
                 case OPENAI_COMPATIBLE:
-                    return testOpenAICompatible(apiKey, endpoint);
+                    return testOpenAICompatible(apiKey, endpoint, model);
                 case Z_AI_GLM_4_5:
-                    return testZAIGLM45(apiKey, endpoint);
+                    return testZAI(apiKey, endpoint, model);
                 default:
                     return AIProviderTestResult.failure("Unsupported provider type: " + type);
             }
@@ -39,10 +43,11 @@ public class AIProviderTestService {
         }
     }
 
-    private AIProviderTestResult testGoogleGemini(String apiKey) {
+    private AIProviderTestResult testGoogleGemini(String apiKey, String model) {
         try {
-            String url = "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=" + apiKey;
-            
+            String mdl = (model == null || model.isBlank()) ? "gemini-2.5-flash" : model;
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/" + mdl + ":generateContent?key=" + apiKey;
+
             Map<String, Object> requestBody = new HashMap<>();
             Map<String, Object> contents = new HashMap<>();
             Map<String, Object> parts = new HashMap<>();
@@ -71,18 +76,19 @@ public class AIProviderTestService {
         }
     }
 
-    private AIProviderTestResult testOpenRouter(String apiKey, String endpoint) {
+    private AIProviderTestResult testOpenRouter(String apiKey, String endpoint, String model) {
         try {
-            String url = endpoint != null ? endpoint : "https://openrouter.ai/api/v1/chat/completions";
-            
+            String base = (endpoint == null || endpoint.isBlank()) ? "https://openrouter.ai/api/v1" : endpoint;
+            String url = base.endsWith("/chat/completions") ? base : base + "/chat/completions";
+
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", "openai/gpt-3.5-turbo");
-            
+            requestBody.put("model", (model == null || model.isBlank()) ? "anthropic/claude-3.5-sonnet" : model);
+
             Map<String, Object> message = new HashMap<>();
             message.put("role", "user");
             message.put("content", "Hello, this is a test message. Please respond with 'Test successful'.");
             requestBody.put("messages", new Object[]{message});
-            requestBody.put("max_tokens", 50);
+            requestBody.put("max_tokens", 30);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -106,18 +112,18 @@ public class AIProviderTestService {
         }
     }
 
-    private AIProviderTestResult testOpenAI(String apiKey) {
+    private AIProviderTestResult testOpenAI(String apiKey, String model) {
         try {
             String url = "https://api.openai.com/v1/chat/completions";
-            
+
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", "gpt-3.5-turbo");
-            
+            requestBody.put("model", (model == null || model.isBlank()) ? "gpt-4o-mini" : model);
+
             Map<String, Object> message = new HashMap<>();
             message.put("role", "user");
             message.put("content", "Hello, this is a test message. Please respond with 'Test successful'.");
             requestBody.put("messages", new Object[]{message});
-            requestBody.put("max_tokens", 50);
+            requestBody.put("max_tokens", 30);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -141,22 +147,22 @@ public class AIProviderTestService {
         }
     }
 
-    private AIProviderTestResult testOpenAICompatible(String apiKey, String endpoint) {
+    private AIProviderTestResult testOpenAICompatible(String apiKey, String endpoint, String model) {
         if (endpoint == null || endpoint.trim().isEmpty()) {
             return AIProviderTestResult.failure("Endpoint is required for OpenAI Compatible providers");
         }
 
         try {
             String url = endpoint + "/v1/chat/completions";
-            
+
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", "gpt-3.5-turbo"); // Default model, can be configured
-            
+            requestBody.put("model", (model == null || model.isBlank()) ? "gpt-3.5-turbo" : model);
+
             Map<String, Object> message = new HashMap<>();
             message.put("role", "user");
             message.put("content", "Hello, this is a test message. Please respond with 'Test successful'.");
             requestBody.put("messages", new Object[]{message});
-            requestBody.put("max_tokens", 50);
+            requestBody.put("max_tokens", 30);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -180,38 +186,61 @@ public class AIProviderTestService {
         }
     }
 
-    private AIProviderTestResult testZAIGLM45(String apiKey, String endpoint) {
+    private AIProviderTestResult testZAI(String apiKey, String endpoint, String model) {
         try {
-            String url = endpoint != null ? endpoint : "https://api.z.ai/v1/chat/completions";
-            
-            Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", "glm-4.5");
-            
-            Map<String, Object> message = new HashMap<>();
-            message.put("role", "user");
-            message.put("content", "Hello, this is a test message. Please respond with 'Test successful'.");
-            requestBody.put("messages", new Object[]{message});
-            requestBody.put("max_tokens", 50);
+            // Use resilience service to ensure consistency with menu description generation
+            String serviceName = "z_ai";
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(apiKey);
+            String result = resilienceService.executeWithResilience(
+                serviceName,
+                () -> {
+                    try {
+                        // Use the official Z.AI API endpoint from documentation
+                        String url = (endpoint != null && !endpoint.isBlank()) ? endpoint : "https://api.z.ai/api/paas/v4/chat/completions";
 
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+                        Map<String, Object> requestBody = new HashMap<>();
+                        requestBody.put("model", (model == null || model.isBlank()) ? "glm-4.5-flash" : model);
 
-            if (response.getStatusCode() == HttpStatus.OK) {
-                JsonNode responseJson = objectMapper.readTree(response.getBody());
-                if (responseJson.has("choices")) {
-                    return AIProviderTestResult.success("Z.AI GLM-4.5 API test successful");
-                } else {
-                    return AIProviderTestResult.failure("Unexpected response format from Z.AI GLM-4.5 API");
+                        Map<String, Object> message = new HashMap<>();
+                        message.put("role", "user");
+                        message.put("content", "Hello, this is a test message. Please respond with 'Test successful'.");
+                        requestBody.put("messages", new Object[]{message});
+                        requestBody.put("max_tokens", 30);
+
+                        HttpHeaders headers = new HttpHeaders();
+                        headers.setContentType(MediaType.APPLICATION_JSON);
+                        headers.setBearerAuth(apiKey);
+                        headers.set("Accept-Language", "en-US,en");
+
+                        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+                        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+
+                        if (response.getStatusCode() == HttpStatus.OK) {
+                            JsonNode responseJson = objectMapper.readTree(response.getBody());
+                            if (responseJson.has("choices") && responseJson.get("choices").size() > 0) {
+                                JsonNode choice = responseJson.get("choices").get(0);
+                                JsonNode msg = choice.get("message");
+                                if (msg != null && msg.has("content")) {
+                                    String content = msg.get("content").asText();
+                                    return content;
+                                }
+                            }
+                            throw new RuntimeException("Invalid response format from Z.AI");
+                        } else {
+                            throw new RuntimeException("Z.AI API error: " + response.getStatusCode() + " - " + response.getBody());
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException("Z.AI API call failed: " + e.getMessage(), e);
+                    }
+                },
+                () -> {
+                    throw new RuntimeException("Z.AI service temporarily unavailable - circuit breaker is open");
                 }
-            } else {
-                return AIProviderTestResult.failure("Z.AI GLM-4.5 API returned status: " + response.getStatusCode());
-            }
+            );
+
+            return AIProviderTestResult.success("Test successful. Response: " + result);
         } catch (Exception e) {
-            return AIProviderTestResult.failure("Z.AI GLM-4.5 API test failed: " + e.getMessage());
+            return AIProviderTestResult.failure("Z.AI test failed: " + e.getMessage());
         }
     }
 }

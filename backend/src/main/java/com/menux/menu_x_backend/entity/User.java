@@ -13,7 +13,7 @@ import java.util.Collection;
 import java.util.List;
 
 @Entity
-@Table(name = "users")
+@jakarta.persistence.Table(name = "users")
 public class User implements UserDetails {
     
     @Id
@@ -56,8 +56,8 @@ public class User implements UserDetails {
     private LocalDateTime updatedAt;
     
     // One user can own one restaurant (for Restaurant Owner role)
-    @OneToOne(mappedBy = "owner", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private Restaurant restaurant;
+    // Note: Removed direct relationship to prevent lazy loading issues
+    // Use RestaurantService.getRestaurantByOwnerId() instead
     
     public enum Role {
         DINER, RESTAURANT_OWNER, SUPER_ADMIN
@@ -152,6 +152,6 @@ public class User implements UserDetails {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
     
-    public Restaurant getRestaurant() { return restaurant; }
-    public void setRestaurant(Restaurant restaurant) { this.restaurant = restaurant; }
+    // Restaurant getters/setters removed to prevent lazy loading issues
+    // Use RestaurantService.getRestaurantByOwnerId(this.getId()) instead
 }

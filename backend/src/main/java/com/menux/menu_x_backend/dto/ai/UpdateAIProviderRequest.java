@@ -1,12 +1,13 @@
 package com.menux.menu_x_backend.dto.ai;
 
-import com.menux.menu_x_backend.entity.AIProviderConfig;
-
 public class UpdateAIProviderRequest {
     
     private String name;
     private String apiKey; // Only include if updating
     private String endpoint;
+    private String providerId;
+    private String model;
+    private String modelDisplayName;
     private Boolean isActive;
     private Boolean isPrimary;
     private String settings;
@@ -23,6 +24,15 @@ public class UpdateAIProviderRequest {
 
     public String getEndpoint() { return endpoint; }
     public void setEndpoint(String endpoint) { this.endpoint = endpoint; }
+
+    public String getProviderId() { return providerId; }
+    public void setProviderId(String providerId) { this.providerId = providerId; }
+
+    public String getModel() { return model; }
+    public void setModel(String model) { this.model = model; }
+
+    public String getModelDisplayName() { return modelDisplayName; }
+    public void setModelDisplayName(String modelDisplayName) { this.modelDisplayName = modelDisplayName; }
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }

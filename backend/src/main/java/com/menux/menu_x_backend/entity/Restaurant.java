@@ -1,5 +1,7 @@
 package com.menux.menu_x_backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -9,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "restaurants")
+@jakarta.persistence.Table(name = "restaurants")
 public class Restaurant {
     
     @Id
@@ -43,24 +45,37 @@ public class Restaurant {
     
     @Column(name = "qr_code_url")
     private String qrCodeUrl;
-    
+
+    @Column(name = "qr_code_size")
+    private Integer qrCodeSize = 256; // Default QR code size in pixels
+
+    @Column(name = "qr_code_generated_at")
+    private LocalDateTime qrCodeGeneratedAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
     
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
+    // Owner relationship - using simple Long field instead of @OneToOne to avoid lazy loading issues
+    @Column(name = "owner_id", nullable = false)
+    private Long ownerId;
+
     // Relationships
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_id", nullable = false)
-    private User owner;
+    // Note: Removed @OneToOne owner relationship to prevent lazy loading issues
+    // Use RestaurantRepository.findByOwnerId() to get restaurants by owner
+    // The owner_id column still exists in the database for foreign key constraint
     
+    @JsonIgnore
     @OneToMany(mappedBy = "restaurant", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Menu> menus = new ArrayList<>();
     
+    @JsonIgnore
     @OneToMany(mappedBy = "restaurant", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Order> orders = new ArrayList<>();
     
+    @JsonIgnore
     @OneToMany(mappedBy = "restaurant", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Feedback> feedbacks = new ArrayList<>();
     
@@ -71,10 +86,9 @@ public class Restaurant {
     // Constructors
     public Restaurant() {}
     
-    public Restaurant(String name, String address, User owner) {
+    public Restaurant(String name, String address) {
         this.name = name;
         this.address = address;
-        this.owner = owner;
         this.createdAt = LocalDateTime.now();
     }
     
@@ -132,15 +146,21 @@ public class Restaurant {
     
     public String getQrCodeUrl() { return qrCodeUrl; }
     public void setQrCodeUrl(String qrCodeUrl) { this.qrCodeUrl = qrCodeUrl; }
-    
+
+    public Integer getQrCodeSize() { return qrCodeSize; }
+    public void setQrCodeSize(Integer qrCodeSize) { this.qrCodeSize = qrCodeSize; }
+
+    public LocalDateTime getQrCodeGeneratedAt() { return qrCodeGeneratedAt; }
+    public void setQrCodeGeneratedAt(LocalDateTime qrCodeGeneratedAt) { this.qrCodeGeneratedAt = qrCodeGeneratedAt; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
     
-    public User getOwner() { return owner; }
-    public void setOwner(User owner) { this.owner = owner; }
+    public Long getOwnerId() { return ownerId; }
+    public void setOwnerId(Long ownerId) { this.ownerId = ownerId; }
     
     public List<Menu> getMenus() { return menus; }
     public void setMenus(List<Menu> menus) { this.menus = menus; }

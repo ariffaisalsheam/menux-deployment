@@ -10,8 +10,31 @@ Authorization: Bearer <jwt_token>
 ```
 
 ## Base URL
+- **Development**: `http://localhost:8080/api`
+- **Production**: `https://api.yourdomain.com/api`
+
+## Response Format
+All API responses follow a consistent format:
+
+### Success Response
+```json
+{
+  "data": { ... },
+  "timestamp": "2024-01-01T12:00:00Z"
+}
 ```
-http://localhost:8080/api
+
+### Error Response
+```json
+{
+  "message": "Error description",
+  "status": 400,
+  "timestamp": "2024-01-01T12:00:00Z",
+  "details": {
+    "errorId": "ERR_123456",
+    "field": "validation error details"
+  }
+}
 ```
 
 ## Authentication Endpoints
@@ -378,6 +401,68 @@ Analyze customer feedback using AI.
   "suggestions": ["Improve service efficiency while maintaining food quality"]
 }
 ```
+
+## Platform Settings Endpoints (Super Admin Only)
+
+### GET /admin/settings
+Get all platform settings.
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "key": "app.name",
+    "value": "Menu.X",
+    "description": "Application name",
+    "valueType": "STRING",
+    "isPublic": true,
+    "isSystem": true,
+    "createdAt": "2024-01-01T00:00:00",
+    "updatedAt": "2024-01-01T00:00:00"
+  }
+]
+```
+
+### POST /admin/settings
+Create a new platform setting.
+
+**Request Body:**
+```json
+{
+  "key": "custom.setting",
+  "value": "custom value",
+  "description": "Custom setting description",
+  "valueType": "STRING",
+  "isPublic": false
+}
+```
+
+### PUT /admin/settings/{key}
+Update an existing platform setting.
+
+**Request Body:**
+```json
+{
+  "value": "updated value",
+  "description": "Updated description",
+  "isPublic": true
+}
+```
+
+### DELETE /admin/settings/{key}
+Delete a platform setting (non-system settings only).
+
+### POST /admin/settings/initialize
+Initialize default platform settings.
+
+## Public Settings Endpoints
+
+### GET /public/settings
+Get all public platform settings.
+
+### GET /public/settings/{key}
+Get a specific public setting by key.
 
 ## Error Responses
 

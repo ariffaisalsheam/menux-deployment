@@ -6,6 +6,9 @@ import RegisterForm from './components/auth/RegisterForm'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import Dashboard from './pages/Dashboard'
 import AdminDashboard from './pages/AdminDashboard'
+import { PublicMenu } from './pages/PublicMenu'
+import ErrorBoundary from './components/common/ErrorBoundary'
+import NetworkStatusIndicator from './components/common/NetworkStatusIndicator'
 // Removed dev-only utilities import; file not present
 
 // Inline placeholder removed to use the real Super Admin dashboard page
@@ -21,42 +24,40 @@ const UnauthorizedPage = () => (
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginForm />} />
-          <Route path="/register" element={<RegisterForm />} />
-          <Route path="/unauthorized" element={<UnauthorizedPage />} />
+    <ErrorBoundary>
+      <AuthProvider>
+        <Router>
+          <div className="min-h-screen bg-gray-50">
+            <NetworkStatusIndicator className="fixed top-0 left-0 right-0 z-50" />
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<LoginForm />} />
+              <Route path="/register" element={<RegisterForm />} />
+              <Route path="/menu/:restaurantId" element={<PublicMenu />} />
+              <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-          {/* Protected Routes */}
-          <Route
-            path="/dashboard/*"
-            element={
-              <ProtectedRoute requiredRole="RESTAURANT_OWNER">
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/*"
-            element={
-              <ProtectedRoute requiredRole="SUPER_ADMIN">
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute requiredRole="SUPER_ADMIN">
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </Router>
-    </AuthProvider>
+              {/* Protected Routes */}
+              <Route
+                path="/dashboard/*"
+                element={
+                  <ProtectedRoute requiredRole="RESTAURANT_OWNER">
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/*"
+                element={
+                  <ProtectedRoute requiredRole="SUPER_ADMIN">
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </div>
+        </Router>
+      </AuthProvider>
+    </ErrorBoundary>
   )
 }
 

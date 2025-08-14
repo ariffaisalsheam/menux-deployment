@@ -32,11 +32,16 @@ public class UserManagementDTO {
         this.status = "active"; // Default status
         this.joinDate = user.getCreatedAt();
         this.lastLogin = user.getUpdatedAt(); // Using updatedAt as proxy for last login
-        
-        if (user.getRestaurant() != null) {
-            this.restaurantId = user.getRestaurant().getId();
-            this.restaurantName = user.getRestaurant().getName();
-            this.subscriptionPlan = user.getRestaurant().getSubscriptionPlan();
+
+        // Restaurant data will be set separately using setters
+    }
+
+    public UserManagementDTO(User user, Restaurant restaurant) {
+        this(user);
+        if (restaurant != null) {
+            this.restaurantId = restaurant.getId();
+            this.restaurantName = restaurant.getName();
+            this.subscriptionPlan = restaurant.getSubscriptionPlan();
         }
     }
 

@@ -7,7 +7,7 @@ import { RestaurantManagement } from '../components/admin/RestaurantManagement';
 import { PlanManagement } from '../components/admin/PlanManagement';
 import { PlatformAnalytics } from '../components/admin/PlatformAnalytics';
 import { AIConfiguration } from '../components/admin/AIConfiguration';
-import { UserJourneyTests } from '../tests/UserJourneyTests';
+import { PlatformSettings } from '../components/admin/PlatformSettings';
 
 
 const AdminDashboard: React.FC = () => {
@@ -20,7 +20,7 @@ const AdminDashboard: React.FC = () => {
         <Route path="/plans" element={<PlanManagement />} />
         <Route path="/analytics" element={<PlatformAnalytics />} />
         <Route path="/ai-config" element={<AIConfiguration />} />
-        <Route path="/tests" element={<UserJourneyTests />} />
+        <Route path="/settings" element={<PlatformSettings />} />
 
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>

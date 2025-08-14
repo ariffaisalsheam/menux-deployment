@@ -12,7 +12,9 @@ import {
   Zap,
   Brain,
   TrendingUp,
-  Bell
+  Bell,
+  QrCode,
+  Grid
 } from 'lucide-react';
 import {
   Sidebar,
@@ -58,6 +60,18 @@ const navigationItems = [
     title: 'Basic Analytics',
     icon: BarChart3,
     href: '/dashboard/analytics',
+    plan: 'BASIC'
+  },
+  {
+    title: 'QR Code',
+    icon: QrCode,
+    href: '/dashboard/qr-code',
+    plan: 'BASIC'
+  },
+  {
+    title: 'Table Management',
+    icon: Grid,
+    href: '/dashboard/tables',
     plan: 'BASIC'
   }
 ];

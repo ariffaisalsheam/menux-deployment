@@ -9,11 +9,13 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -38,24 +40,91 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             jwt = authorizationHeader.substring(7);
             try {
                 username = jwtUtil.extractUsername(jwt);
+                logger.debug("Extracted username from JWT: " + username);
+                // Best-effort: extract restaurantId claim if present
+                try {
+                    Long restaurantId = jwtUtil.extractClaim(jwt, claims -> {
+                        Object rid = claims.get("restaurantId");
+                        if (rid == null) return null;
+                        if (rid instanceof Number) return ((Number) rid).longValue();
+                        try { return Long.parseLong(rid.toString()); } catch (NumberFormatException e) { return null; }
+                    });
+                    RestaurantContext.setRestaurantId(restaurantId);
+                } catch (Exception ignored) {
+                    // Do not fail request on missing/invalid restaurantId claim
+                }
             } catch (Exception e) {
-                logger.error("Error extracting username from JWT token", e);
+                logger.error("Error extracting username from JWT token: " + e.getMessage());
             }
+        } else {
+            logger.debug("No Authorization header found or invalid format");
         }
 
         // Validate token and set authentication
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            try {
+                // First validate token without database call
+                if (jwtUtil.isTokenValid(jwt)) {
+                    // Extract user details from JWT token to avoid database call
+                    UserDetails userDetails = createUserDetailsFromJWT(jwt, username);
 
-            if (jwtUtil.validateToken(jwt, userDetails)) {
-                UsernamePasswordAuthenticationToken authToken = 
-                    new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities());
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+                    UsernamePasswordAuthenticationToken authToken =
+                        new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities());
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                    logger.debug("Authentication set for user: " + username);
+                } else {
+                    logger.warn("JWT token validation failed for user: " + username);
+                }
+            } catch (Exception e) {
+                logger.error("Error validating JWT token for username: " + username + ", error: " + e.getMessage());
+                // Fallback to database-based authentication if JWT validation fails
+                try {
+                    UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                    if (jwtUtil.validateToken(jwt, userDetails)) {
+                        UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
+                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                        logger.debug("Fallback authentication set for user: " + username);
+                    }
+                } catch (Exception fallbackException) {
+                    logger.error("Fallback authentication also failed for username: " + username + ", error: " + fallbackException.getMessage());
+                }
             }
         }
 
-        filterChain.doFilter(request, response);
+        try {
+            filterChain.doFilter(request, response);
+        } finally {
+            // Always clear context to avoid leakage across threads
+            RestaurantContext.clear();
+        }
+    }
+
+    /**
+     * Create UserDetails from JWT token without database call
+     */
+    private UserDetails createUserDetailsFromJWT(String jwt, String username) {
+        try {
+            // Extract role from JWT
+            String role = jwtUtil.extractClaim(jwt, claims -> claims.get("role", String.class));
+
+            // Create a simple UserDetails implementation
+            return new org.springframework.security.core.userdetails.User(
+                username,
+                "", // No password needed for JWT authentication
+                true, // enabled
+                true, // accountNonExpired
+                true, // credentialsNonExpired
+                true, // accountNonLocked
+                List.of(new SimpleGrantedAuthority("ROLE_" + role))
+            );
+        } catch (Exception e) {
+            logger.error("Error creating UserDetails from JWT for user: " + username, e);
+            throw new RuntimeException("Failed to create UserDetails from JWT", e);
+        }
     }
 }

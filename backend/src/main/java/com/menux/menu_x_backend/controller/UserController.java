@@ -2,9 +2,8 @@ package com.menux.menu_x_backend.controller;
 
 import com.menux.menu_x_backend.dto.auth.UserProfileDTO;
 import com.menux.menu_x_backend.entity.User;
-import com.menux.menu_x_backend.entity.Restaurant;
 import com.menux.menu_x_backend.repository.UserRepository;
-import com.menux.menu_x_backend.repository.RestaurantRepository;
+import com.menux.menu_x_backend.service.RestaurantService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -21,7 +20,7 @@ public class UserController {
     private UserRepository userRepository;
 
     @Autowired
-    private RestaurantRepository restaurantRepository;
+    private RestaurantService restaurantService;
 
     @GetMapping("/profile")
     public ResponseEntity<UserProfileDTO> getCurrentUserProfile() {
@@ -42,15 +41,13 @@ public class UserController {
         profile.setPhoneNumber(user.getPhoneNumber());
         profile.setRole(user.getRole().toString());
         
-        // If user is a restaurant owner, get restaurant info and subscription plan
+        // If user is a restaurant owner, get restaurant info and subscription plan using safe context first
         if (user.getRole() == User.Role.RESTAURANT_OWNER) {
-            Optional<Restaurant> restaurantOpt = restaurantRepository.findByOwnerId(user.getId());
-            if (restaurantOpt.isPresent()) {
-                Restaurant restaurant = restaurantOpt.get();
+            restaurantService.getCurrentUserRestaurant().ifPresent(restaurant -> {
                 profile.setRestaurantId(restaurant.getId());
                 profile.setRestaurantName(restaurant.getName());
                 profile.setSubscriptionPlan(restaurant.getSubscriptionPlan().toString());
-            }
+            });
         }
         
         return ResponseEntity.ok(profile);

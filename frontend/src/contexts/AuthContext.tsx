@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { userAPI } from '../services/api'
 
 export interface User {
@@ -128,7 +128,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       // Fetch fresh user data from the API
       const freshUserData = await userAPI.getCurrentProfile()
@@ -147,7 +147,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
     }
-  }
+  }, [])
 
   const value: AuthContextType = {
     user,

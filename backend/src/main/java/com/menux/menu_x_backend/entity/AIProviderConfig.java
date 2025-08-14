@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "ai_provider_configs")
+@jakarta.persistence.Table(name = "ai_provider_configs")
 public class AIProviderConfig {
 
     @Id
@@ -27,8 +27,17 @@ public class AIProviderConfig {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String encryptedApiKey;
 
+    @Column(length = 64)
+    private String providerId; // stable identifier for custom providers (e.g., "my-provider")
+
     @Column(columnDefinition = "TEXT")
     private String endpoint;
+
+    @Column
+    private String model; // AI model to use (e.g., gemini-2.5-pro, o4-mini, etc.)
+
+    @Column(name = "model_display_name")
+    private String modelDisplayName; // UI-friendly model name
 
     @Column(nullable = false)
     private Boolean isActive = false;
@@ -104,8 +113,17 @@ public class AIProviderConfig {
     public String getEncryptedApiKey() { return encryptedApiKey; }
     public void setEncryptedApiKey(String encryptedApiKey) { this.encryptedApiKey = encryptedApiKey; }
 
+    public String getProviderId() { return providerId; }
+    public void setProviderId(String providerId) { this.providerId = providerId; }
+
     public String getEndpoint() { return endpoint; }
     public void setEndpoint(String endpoint) { this.endpoint = endpoint; }
+
+    public String getModel() { return model; }
+    public void setModel(String model) { this.model = model; }
+
+    public String getModelDisplayName() { return modelDisplayName; }
+    public void setModelDisplayName(String modelDisplayName) { this.modelDisplayName = modelDisplayName; }
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }

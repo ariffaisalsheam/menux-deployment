@@ -47,6 +47,11 @@ const navigationItems = [
     title: 'Platform Analytics',
     icon: BarChart3,
     href: '/admin/analytics',
+  },
+  {
+    title: 'Platform Settings',
+    icon: Settings,
+    href: '/admin/settings',
   }
 ];
 

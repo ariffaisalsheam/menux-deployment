@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,14 +28,27 @@ public class AdminService {
     public List<UserManagementDTO> getAllUsers() {
         List<User> users = userRepository.findAll();
         return users.stream()
-                .map(UserManagementDTO::new)
+                .map(user -> {
+                    if (user.getRole() == User.Role.RESTAURANT_OWNER) {
+                        Optional<Restaurant> restaurantOpt = restaurantRepository.findByOwnerId(user.getId());
+                        return new UserManagementDTO(user, restaurantOpt.orElse(null));
+                    } else {
+                        return new UserManagementDTO(user);
+                    }
+                })
                 .collect(Collectors.toList());
     }
 
     public UserManagementDTO getUserById(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
-        return new UserManagementDTO(user);
+
+        if (user.getRole() == User.Role.RESTAURANT_OWNER) {
+            Optional<Restaurant> restaurantOpt = restaurantRepository.findByOwnerId(user.getId());
+            return new UserManagementDTO(user, restaurantOpt.orElse(null));
+        } else {
+            return new UserManagementDTO(user);
+        }
     }
 
     @Transactional
@@ -46,15 +60,17 @@ public class AdminService {
             throw new RuntimeException("Can only update subscription plan for restaurant owners");
         }
         
-        Restaurant restaurant = user.getRestaurant();
-        if (restaurant == null) {
+        Optional<Restaurant> restaurantOpt = restaurantRepository.findByOwnerId(user.getId());
+        if (restaurantOpt.isEmpty()) {
             throw new RuntimeException("User does not have an associated restaurant");
         }
+
+        Restaurant restaurant = restaurantOpt.get();
         
         restaurant.setSubscriptionPlan(plan);
         restaurantRepository.save(restaurant);
-        
-        return new UserManagementDTO(user);
+
+        return new UserManagementDTO(user, restaurant);
     }
 
     @Transactional
@@ -63,8 +79,9 @@ public class AdminService {
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
         
         // If user has a restaurant, delete it first
-        if (user.getRestaurant() != null) {
-            restaurantRepository.delete(user.getRestaurant());
+        Optional<Restaurant> restaurantOpt = restaurantRepository.findByOwnerId(user.getId());
+        if (restaurantOpt.isPresent()) {
+            restaurantRepository.delete(restaurantOpt.get());
         }
         
         userRepository.delete(user);
@@ -73,33 +90,74 @@ public class AdminService {
     public UserManagementDTO activateUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
-        
+
         // In a real implementation, you would have an 'active' field in the User entity
         // For now, we'll just return the user as is
-        return new UserManagementDTO(user);
+        if (user.getRole() == User.Role.RESTAURANT_OWNER) {
+            Optional<Restaurant> restaurantOpt = restaurantRepository.findByOwnerId(user.getId());
+            return new UserManagementDTO(user, restaurantOpt.orElse(null));
+        } else {
+            return new UserManagementDTO(user);
+        }
     }
 
     public UserManagementDTO deactivateUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
-        
+
         // In a real implementation, you would have an 'active' field in the User entity
         // For now, we'll just return the user as is
-        return new UserManagementDTO(user);
+        if (user.getRole() == User.Role.RESTAURANT_OWNER) {
+            Optional<Restaurant> restaurantOpt = restaurantRepository.findByOwnerId(user.getId());
+            return new UserManagementDTO(user, restaurantOpt.orElse(null));
+        } else {
+            return new UserManagementDTO(user);
+        }
     }
 
     // Restaurant Management Methods
     public List<RestaurantManagementDTO> getAllRestaurants() {
         List<Restaurant> restaurants = restaurantRepository.findAll();
         return restaurants.stream()
-                .map(RestaurantManagementDTO::new)
+                .map(restaurant -> {
+                    // Create basic DTO without owner data to avoid lazy loading
+                    RestaurantManagementDTO dto = new RestaurantManagementDTO(restaurant);
+
+                    // Try to find owner by restaurant ID using safe repository method
+                    List<User> restaurantOwners = userRepository.findByRole(User.Role.RESTAURANT_OWNER);
+                    for (User owner : restaurantOwners) {
+                        Optional<Restaurant> ownerRestaurant = restaurantRepository.findByOwnerId(owner.getId());
+                        if (ownerRestaurant.isPresent() && ownerRestaurant.get().getId().equals(restaurant.getId())) {
+                            dto.setOwnerName(owner.getFullName());
+                            dto.setOwnerEmail(owner.getEmail());
+                            break;
+                        }
+                    }
+
+                    return dto;
+                })
                 .collect(Collectors.toList());
     }
 
     public RestaurantManagementDTO getRestaurantById(Long id) {
         Restaurant restaurant = restaurantRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Restaurant not found with id: " + id));
-        return new RestaurantManagementDTO(restaurant);
+
+        // Create basic DTO without owner data to avoid lazy loading
+        RestaurantManagementDTO dto = new RestaurantManagementDTO(restaurant);
+
+        // Try to find owner by restaurant ID using safe repository method
+        List<User> restaurantOwners = userRepository.findByRole(User.Role.RESTAURANT_OWNER);
+        for (User owner : restaurantOwners) {
+            Optional<Restaurant> ownerRestaurant = restaurantRepository.findByOwnerId(owner.getId());
+            if (ownerRestaurant.isPresent() && ownerRestaurant.get().getId().equals(restaurant.getId())) {
+                dto.setOwnerName(owner.getFullName());
+                dto.setOwnerEmail(owner.getEmail());
+                break;
+            }
+        }
+
+        return dto;
     }
 
     // Platform Analytics Methods

@@ -5,7 +5,57 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.ConstraintValidator;
+import jakarta.validation.ConstraintValidatorContext;
+import jakarta.validation.Constraint;
+import jakarta.validation.Payload;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
+// Custom validation annotation for restaurant fields
+@Target({ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Constraint(validatedBy = RestaurantFieldsValidator.class)
+@Documented
+@interface ValidRestaurantFields {
+    String message() default "Restaurant name and address are required for restaurant owners";
+    Class<?>[] groups() default {};
+    Class<? extends Payload>[] payload() default {};
+}
+
+// Validator implementation
+class RestaurantFieldsValidator implements ConstraintValidator<ValidRestaurantFields, RegisterRequest> {
+    @Override
+    public boolean isValid(RegisterRequest request, ConstraintValidatorContext context) {
+        if (request.getRole() == User.Role.RESTAURANT_OWNER) {
+            boolean isValid = true;
+
+            if (request.getRestaurantName() == null || request.getRestaurantName().trim().isEmpty()) {
+                context.disableDefaultConstraintViolation();
+                context.buildConstraintViolationWithTemplate("Restaurant name is required for restaurant owners")
+                       .addPropertyNode("restaurantName")
+                       .addConstraintViolation();
+                isValid = false;
+            }
+
+            if (request.getRestaurantAddress() == null || request.getRestaurantAddress().trim().isEmpty()) {
+                context.disableDefaultConstraintViolation();
+                context.buildConstraintViolationWithTemplate("Restaurant address is required for restaurant owners")
+                       .addPropertyNode("restaurantAddress")
+                       .addConstraintViolation();
+                isValid = false;
+            }
+
+            return isValid;
+        }
+        return true; // Valid for non-restaurant owners
+    }
+}
+
+@ValidRestaurantFields
 public class RegisterRequest {
     
     @NotBlank(message = "Username is required")

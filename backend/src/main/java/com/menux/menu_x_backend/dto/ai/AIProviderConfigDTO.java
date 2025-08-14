@@ -9,7 +9,10 @@ public class AIProviderConfigDTO {
     private String name;
     private AIProviderConfig.ProviderType type;
     private String maskedApiKey;
+    private String providerId;
     private String endpoint;
+    private String model;
+    private String modelDisplayName;
     private Boolean isActive;
     private Boolean isPrimary;
     private String settings;
@@ -27,7 +30,10 @@ public class AIProviderConfigDTO {
         this.name = config.getName();
         this.type = config.getType();
         this.maskedApiKey = maskedApiKey;
+        this.providerId = config.getProviderId();
         this.endpoint = config.getEndpoint();
+        this.model = config.getModel();
+        this.modelDisplayName = config.getModelDisplayName();
         this.isActive = config.getIsActive();
         this.isPrimary = config.getIsPrimary();
         this.settings = config.getSettings();
@@ -51,8 +57,17 @@ public class AIProviderConfigDTO {
     public String getMaskedApiKey() { return maskedApiKey; }
     public void setMaskedApiKey(String maskedApiKey) { this.maskedApiKey = maskedApiKey; }
 
+    public String getProviderId() { return providerId; }
+    public void setProviderId(String providerId) { this.providerId = providerId; }
+
     public String getEndpoint() { return endpoint; }
     public void setEndpoint(String endpoint) { this.endpoint = endpoint; }
+
+    public String getModel() { return model; }
+    public void setModel(String model) { this.model = model; }
+
+    public String getModelDisplayName() { return modelDisplayName; }
+    public void setModelDisplayName(String modelDisplayName) { this.modelDisplayName = modelDisplayName; }
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }

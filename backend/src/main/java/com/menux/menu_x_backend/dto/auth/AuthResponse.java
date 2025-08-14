@@ -1,8 +1,5 @@
 package com.menux.menu_x_backend.dto.auth;
 
-import com.menux.menu_x_backend.entity.User;
-import com.menux.menu_x_backend.entity.Restaurant;
-
 public class AuthResponse {
 
     private String token;
@@ -11,17 +8,17 @@ public class AuthResponse {
     private String username;
     private String email;
     private String fullName;
-    private User.Role role;
+    private String role;
     private Long restaurantId;
     private String restaurantName;
-    private Restaurant.SubscriptionPlan subscriptionPlan;
+    private String subscriptionPlan;
     
     // Constructors
     public AuthResponse() {}
     
     public AuthResponse(String token, Long id, String username, String email,
-                       String fullName, User.Role role, Long restaurantId,
-                       String restaurantName, Restaurant.SubscriptionPlan subscriptionPlan) {
+                       String fullName, String role, Long restaurantId,
+                       String restaurantName, String subscriptionPlan) {
         this.token = token;
         this.id = id;
         this.username = username;
@@ -52,15 +49,15 @@ public class AuthResponse {
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }
     
-    public User.Role getRole() { return role; }
-    public void setRole(User.Role role) { this.role = role; }
-    
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
+
     public Long getRestaurantId() { return restaurantId; }
     public void setRestaurantId(Long restaurantId) { this.restaurantId = restaurantId; }
 
     public String getRestaurantName() { return restaurantName; }
     public void setRestaurantName(String restaurantName) { this.restaurantName = restaurantName; }
 
-    public Restaurant.SubscriptionPlan getSubscriptionPlan() { return subscriptionPlan; }
-    public void setSubscriptionPlan(Restaurant.SubscriptionPlan subscriptionPlan) { this.subscriptionPlan = subscriptionPlan; }
+    public String getSubscriptionPlan() { return subscriptionPlan; }
+    public void setSubscriptionPlan(String subscriptionPlan) { this.subscriptionPlan = subscriptionPlan; }
 }

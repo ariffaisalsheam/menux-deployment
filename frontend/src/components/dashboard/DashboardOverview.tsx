@@ -80,6 +80,29 @@ export const DashboardOverview: React.FC = () => {
     refetch
   } = useApi<RestaurantAnalytics>(() => analyticsAPI.getRestaurantAnalytics());
 
+  // Fetch feedback analytics for AI insights (positive sentiment)
+  const {
+    data: feedbackAnalytics
+  } = useApi<{ averageRating: number; totalFeedback: number; positiveCount: number; neutralCount: number; negativeCount: number }>(
+    () => analyticsAPI.getFeedbackAnalytics()
+  );
+
+  // Fetch recent activity for the current restaurant
+  type RecentActivity = { type: 'ORDER' | 'MENU' | 'FEEDBACK'; title: string; description: string; createdAt: string };
+  const { data: recentActivity } = useApi<RecentActivity[]>(() => analyticsAPI.getRecentActivity());
+
+  const timeAgo = (iso: string) => {
+    const d = new Date(iso);
+    const diff = Math.max(0, Date.now() - d.getTime());
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -143,6 +166,10 @@ export const DashboardOverview: React.FC = () => {
     }
   ];
 
+  const positivePct = feedbackAnalytics && feedbackAnalytics.totalFeedback > 0
+    ? Math.round((feedbackAnalytics.positiveCount / feedbackAnalytics.totalFeedback) * 100)
+    : null;
+
   const proStats = [
     {
       title: 'Live Orders',
@@ -153,8 +180,8 @@ export const DashboardOverview: React.FC = () => {
     },
     {
       title: 'AI Insights',
-      value: '94%',
-      description: 'positive sentiment',
+      value: positivePct !== null ? `${positivePct}%` : '—',
+      description: positivePct !== null ? 'positive sentiment' : 'not enough feedback',
       icon: TrendingUp,
       isPro: true
     }
@@ -256,31 +283,25 @@ export const DashboardOverview: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">New order received</p>
-                <p className="text-xs text-muted-foreground">Order #1234 - ৳850</p>
-              </div>
-              <span className="text-xs text-muted-foreground">2 min ago</span>
-            </div>
-            <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">Menu item updated</p>
-                <p className="text-xs text-muted-foreground">Chicken Biryani price changed</p>
-              </div>
-              <span className="text-xs text-muted-foreground">1 hour ago</span>
-            </div>
-            <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">Customer feedback</p>
-                <p className="text-xs text-muted-foreground">5-star review received</p>
-              </div>
-              <span className="text-xs text-muted-foreground">3 hours ago</span>
-            </div>
+          <div className="space-y-3">
+            {(recentActivity || []).slice(0, 10).map((a, i) => {
+              const color = a.type === 'ORDER' ? 'bg-green-500' : a.type === 'MENU' ? 'bg-blue-500' : 'bg-purple-500';
+              return (
+                <div key={i} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                  <div className={`w-2 h-2 rounded-full ${color}`}></div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{a.title}</p>
+                    {a.description && (
+                      <p className="text-xs text-muted-foreground truncate max-w-[70ch]">{a.description}</p>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground">{timeAgo(a.createdAt)}</span>
+                </div>
+              );
+            })}
+            {(!recentActivity || recentActivity.length === 0) && (
+              <p className="text-sm text-muted-foreground">No activity yet. New orders, menu changes, and feedback will appear here.</p>
+            )}
           </div>
         </CardContent>
       </Card>

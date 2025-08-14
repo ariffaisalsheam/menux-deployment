@@ -2,13 +2,17 @@ package com.menux.menu_x_backend.controller;
 
 import com.menux.menu_x_backend.dto.ai.*;
 import com.menux.menu_x_backend.service.AIConfigService;
+import com.menux.menu_x_backend.service.AIUsageService;
+import com.menux.menu_x_backend.service.ExternalApiResilienceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/ai-config")
@@ -16,6 +20,12 @@ public class AIConfigController {
 
     @Autowired
     private AIConfigService aiConfigService;
+
+    @Autowired
+    private AIUsageService aiUsageService;
+
+    @Autowired
+    private ExternalApiResilienceService resilienceService;
 
     @GetMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -61,9 +71,40 @@ public class AIConfigController {
         return ResponseEntity.ok(aiConfigService.testProvider(id));
     }
 
+    @PostMapping("/test")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<AIProviderTestResult> testProviderConfiguration(@RequestBody TestProviderRequest request) {
+        return ResponseEntity.ok(aiConfigService.testProviderConfiguration(request));
+    }
+
     @PostMapping("/{id}/set-primary")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<AIProviderConfigDTO> setPrimary(@PathVariable Long id) {
         return ResponseEntity.ok(aiConfigService.setPrimaryProvider(id));
+    }
+
+    @GetMapping("/models")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Map<String, List<String>>> getAvailableModels() {
+        return ResponseEntity.ok(aiConfigService.getAvailableModels());
+    }
+
+    @GetMapping("/usage")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Map<Long, AIUsageDTO>> getUsage() {
+        return ResponseEntity.ok(aiUsageService.getUsageStatistics());
+    }
+
+    @PostMapping("/reset-circuit-breaker/{serviceName}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Map<String, Object>> resetCircuitBreaker(@PathVariable String serviceName) {
+        resilienceService.resetCircuitBreaker(serviceName);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", "Circuit breaker reset for service: " + serviceName);
+        response.put("serviceName", serviceName);
+
+        return ResponseEntity.ok(response);
     }
 }

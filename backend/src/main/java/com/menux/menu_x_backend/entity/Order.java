@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "orders")
+@jakarta.persistence.Table(name = "orders")
 public class Order {
     
     @Id
@@ -59,6 +59,10 @@ public class Order {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "restaurant_id", nullable = false)
     private Restaurant restaurant;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "table_id")
+    private Table table; // Optional - for dine-in orders with table assignment
     
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<OrderItem> orderItems = new ArrayList<>();
@@ -68,7 +72,7 @@ public class Order {
     }
     
     public enum PaymentStatus {
-        PENDING, PAID, FAILED, REFUNDED
+        PENDING, BILL_REQUESTED, PAID, FAILED, REFUNDED
     }
     
     // Constructors
@@ -89,11 +93,19 @@ public class Order {
         }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        // Ensure totalAmount is populated before validation/persist
+        if (totalAmount == null) {
+            totalAmount = calculateTotalAmount();
+        }
     }
     
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+        // Keep totalAmount consistent if items changed elsewhere
+        if (totalAmount == null) {
+            totalAmount = calculateTotalAmount();
+        }
         if (status == OrderStatus.SERVED && completedAt == null) {
             completedAt = LocalDateTime.now();
         }
@@ -166,7 +178,10 @@ public class Order {
     
     public Restaurant getRestaurant() { return restaurant; }
     public void setRestaurant(Restaurant restaurant) { this.restaurant = restaurant; }
-    
+
+    public Table getTable() { return table; }
+    public void setTable(Table table) { this.table = table; }
+
     public List<OrderItem> getOrderItems() { return orderItems; }
     public void setOrderItems(List<OrderItem> orderItems) { this.orderItems = orderItems; }
 }

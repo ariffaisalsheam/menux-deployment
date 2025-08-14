@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class AuthService {
@@ -76,7 +77,7 @@ public class AuthService {
             restaurant.setDescription(request.getRestaurantDescription());
             restaurant.setPhoneNumber(request.getRestaurantPhone());
             restaurant.setEmail(request.getRestaurantEmail());
-            restaurant.setOwner(user);
+            restaurant.setOwnerId(user.getId()); // Set owner ID directly
 
             restaurant = restaurantRepository.save(restaurant);
         }
@@ -97,10 +98,10 @@ public class AuthService {
             user.getUsername(),
             user.getEmail(),
             user.getFullName(),
-            user.getRole(),
+            user.getRole().name(),
             restaurant != null ? restaurant.getId() : null,
             restaurant != null ? restaurant.getName() : null,
-            restaurant != null ? restaurant.getSubscriptionPlan() : null
+            restaurant != null ? restaurant.getSubscriptionPlan().name() : null
         );
     }
 
@@ -118,11 +119,24 @@ public class AuthService {
         extraClaims.put("userId", user.getId());
 
         Long restaurantId = null;
-        if (user.getRole() == User.Role.RESTAURANT_OWNER && user.getRestaurant() != null) {
-            restaurantId = user.getRestaurant().getId();
-            extraClaims.put("restaurantId", restaurantId);
+        String restaurantName = null;
+        Restaurant.SubscriptionPlan subscriptionPlan = null;
+
+        if (user.getRole() == User.Role.RESTAURANT_OWNER) {
+            // Use repository to avoid lazy loading issues
+            Optional<Restaurant> restaurantOpt = restaurantRepository.findByOwnerId(user.getId());
+            if (restaurantOpt.isPresent()) {
+                Restaurant restaurant = restaurantOpt.get();
+                restaurantId = restaurant.getId();
+                restaurantName = restaurant.getName();
+                subscriptionPlan = restaurant.getSubscriptionPlan();
+            }
         }
 
+        // Put restaurantId only if found; JWT stays consistent for users without restaurants
+        if (restaurantId != null) {
+            extraClaims.put("restaurantId", restaurantId);
+        }
         String token = jwtUtil.generateToken(user, extraClaims);
 
         return new AuthResponse(
@@ -131,10 +145,10 @@ public class AuthService {
             user.getUsername(),
             user.getEmail(),
             user.getFullName(),
-            user.getRole(),
+            user.getRole().name(),
             restaurantId,
-            user.getRestaurant() != null ? user.getRestaurant().getName() : null,
-            user.getRestaurant() != null ? user.getRestaurant().getSubscriptionPlan() : null
+            restaurantName,
+            subscriptionPlan != null ? subscriptionPlan.name() : null
         );
     }
 }

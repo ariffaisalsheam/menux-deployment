@@ -1,8 +1,9 @@
-import React from 'react';
-import { Crown, Zap, Clock, CheckCircle, ArrowRight, ChefHat, Package } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Crown, Zap, Clock, CheckCircle, ArrowRight, ChefHat, Package, Grid, Filter } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useAuth } from '../../contexts/AuthContext';
 import { orderAPI } from '../../services/api';
 import { useApi, useApiMutation } from '../../hooks/useApi';
@@ -12,6 +13,7 @@ import { ErrorDisplay } from '../common/ErrorDisplay';
 interface Order {
   id: number;
   customerName: string;
+  tableNumber?: string;
   items: Array<{
     name: string;
     quantity: number;
@@ -19,6 +21,7 @@ interface Order {
   }>;
   totalAmount: number;
   status: 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED';
+  paymentStatus?: 'UNPAID' | 'BILL_REQUESTED' | 'PAID';
   createdAt: string;
   notes?: string;
 }
@@ -26,6 +29,8 @@ interface Order {
 export const LiveOrders: React.FC = () => {
   const { user } = useAuth();
   const isPro = user?.subscriptionPlan === 'PRO';
+  const [selectedTable, setSelectedTable] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
 
   // Fetch orders
   const {
@@ -42,6 +47,43 @@ export const LiveOrders: React.FC = () => {
       onSuccess: () => refetch()
     }
   );
+
+  // Update payment status mutation
+  const updatePaymentMutation = useApiMutation(
+    ({ id, paymentStatus }: { id: number; paymentStatus: string }) => orderAPI.updatePaymentStatus(id, paymentStatus),
+    {
+      onSuccess: () => refetch()
+    }
+  );
+
+  // Filter orders based on table and status
+  const filteredOrders = useMemo(() => {
+    if (!orders) return [];
+    return orders.filter(order => {
+      const tableMatch = selectedTable === 'all' || order.tableNumber === selectedTable;
+      const statusMatch = selectedStatus === 'all' || order.status === selectedStatus;
+      return tableMatch && statusMatch;
+    });
+  }, [orders, selectedTable, selectedStatus]);
+
+  // Get unique table numbers for filter dropdown
+  const uniqueTables = useMemo(() => {
+    if (!orders) return [];
+    const tables = orders
+      .map(order => order.tableNumber)
+      .filter((table): table is string => table !== undefined && table !== null)
+      .filter((table, index, arr) => arr.indexOf(table) === index)
+      .sort((a, b) => {
+        // Sort numerically if possible, otherwise alphabetically
+        const numA = parseInt(a);
+        const numB = parseInt(b);
+        if (!isNaN(numA) && !isNaN(numB)) {
+          return numA - numB;
+        }
+        return a.localeCompare(b);
+      });
+    return tables;
+  }, [orders]);
 
   if (!isPro) {
     return (
@@ -218,8 +260,7 @@ export const LiveOrders: React.FC = () => {
   };
 
   const getOrdersByStatus = (status: string) => {
-    const safeOrders = orders ?? [];
-    return safeOrders.filter(order => order.status === status);
+    return filteredOrders.filter(order => order.status === status);
   };
 
   const getStatusColor = (status: string) => {
@@ -299,6 +340,74 @@ export const LiveOrders: React.FC = () => {
         </div>
       </div>
 
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="w-5 h-5" />
+            Filters
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="text-sm font-medium mb-2 block">Filter by Table</label>
+              <Select value={selectedTable} onValueChange={setSelectedTable}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Tables" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tables</SelectItem>
+                  {uniqueTables.map((table) => (
+                    <SelectItem key={table} value={table}>
+                      <div className="flex items-center gap-2">
+                        <Grid className="w-4 h-4" />
+                        Table {table}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex-1">
+              <label className="text-sm font-medium mb-2 block">Filter by Status</label>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="CONFIRMED">Confirmed</SelectItem>
+                  <SelectItem value="PREPARING">Preparing</SelectItem>
+                  <SelectItem value="READY">Ready</SelectItem>
+                  <SelectItem value="SERVED">Served</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelectedTable('all');
+                  setSelectedStatus('all');
+                }}
+              >
+                Clear Filters
+              </Button>
+            </div>
+          </div>
+
+          <div className="mt-4 text-sm text-muted-foreground">
+            Showing {filteredOrders.length} of {orders?.length || 0} orders
+            {selectedTable !== 'all' && ` • Table: ${selectedTable}`}
+            {selectedStatus !== 'all' && ` • Status: ${selectedStatus}`}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Kanban Board */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {['PENDING', 'CONFIRMED', 'PREPARING', 'READY'].map((status) => {
@@ -333,9 +442,17 @@ export const LiveOrders: React.FC = () => {
                               {new Date(order.createdAt).toLocaleTimeString()}
                             </Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            Customer: {order.customerName}
-                          </p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-muted-foreground">
+                              Customer: {order.customerName}
+                            </p>
+                            {order.tableNumber && (
+                              <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                                <Grid className="w-3 h-3" />
+                                Table {order.tableNumber}
+                              </Badge>
+                            )}
+                          </div>
                           <div className="text-sm">
                             {order.items.map((item, index) => (
                               <div key={index} className="flex justify-between">
@@ -359,6 +476,28 @@ export const LiveOrders: React.FC = () => {
                                     <ArrowRight className="w-3 h-3 mr-1" />
                                     {getNextStatus(order.status)}
                                   </>
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between pt-2">
+                            <div className="text-xs">
+                              Payment:
+                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-medium">
+                                {order.paymentStatus || 'UNPAID'}
+                              </span>
+                            </div>
+                            {order.paymentStatus !== 'PAID' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updatePaymentMutation.mutate({ id: order.id, paymentStatus: 'PAID' })}
+                                disabled={updatePaymentMutation.loading}
+                              >
+                                {updatePaymentMutation.loading ? (
+                                  <LoadingSpinner size="sm" />
+                                ) : (
+                                  'Mark Paid'
                                 )}
                               </Button>
                             )}

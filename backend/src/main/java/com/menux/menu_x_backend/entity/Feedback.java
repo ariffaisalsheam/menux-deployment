@@ -9,7 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "feedbacks")
+@jakarta.persistence.Table(name = "feedbacks")
 public class Feedback {
     
     @Id
@@ -89,8 +89,10 @@ public class Feedback {
     }
     
     public String getDisplayAnalysis() {
-        // Return AI analysis if available and restaurant is Pro, otherwise return null
-        if (hasAiAnalysis() && restaurant != null && restaurant.isPro()) {
+        // Return AI analysis if available, otherwise return null
+        // Note: Restaurant Pro status check removed to prevent lazy loading issues
+        // Pro status should be checked at the service/controller level
+        if (hasAiAnalysis()) {
             return aiAnalysis;
         }
         return null;

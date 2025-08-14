@@ -79,4 +79,5 @@ public class AdminController {
         UserManagementDTO user = adminService.deactivateUser(id);
         return ResponseEntity.ok(user);
     }
+
 }

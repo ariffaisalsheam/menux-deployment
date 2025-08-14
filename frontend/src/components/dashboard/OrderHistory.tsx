@@ -11,14 +11,17 @@ import { LoadingSkeleton } from '../common/LoadingSpinner';
 import { ErrorDisplay } from '../common/ErrorDisplay';
 
 interface Order {
-  id: string;
-  customerName: string;
-  items: string[];
-  total: number;
-  status: 'completed' | 'cancelled';
-  date: string;
-  time: string;
-  paymentMethod: string;
+  id: number | string;
+  orderNumber?: string;
+  customerName?: string;
+  items?: Array<{ name: string; quantity: number; price: number; specialInstructions?: string }> | string[];
+  totalAmount?: number;
+  total?: number; // fallback for any legacy shape
+  status: string; // Backend sends uppercase enums: PENDING, CONFIRMED, PREPARING, READY, SERVED, CANCELLED
+  createdAt?: string;
+  updatedAt?: string;
+  completedAt?: string;
+  paymentMethod?: string;
 }
 
 export const OrderHistory: React.FC = () => {
@@ -37,20 +40,48 @@ export const OrderHistory: React.FC = () => {
 
   const isPro = user?.subscriptionPlan === 'PRO';
 
+  const isCompleted = (status?: string) => {
+    const s = (status || '').toUpperCase();
+    return s === 'SERVED' || s === 'COMPLETED';
+  };
+
+  const isCancelled = (status?: string) => (status || '').toUpperCase() === 'CANCELLED';
+
+  const getStatusBadge = (status?: string): { label: string; variant: 'default' | 'secondary' | 'destructive' } => {
+    const s = (status || '').toUpperCase();
+    if (s === 'SERVED' || s === 'COMPLETED') return { label: 'Completed', variant: 'default' };
+    if (s === 'CANCELLED') return { label: 'Cancelled', variant: 'destructive' };
+    return { label: s || 'In Progress', variant: 'secondary' };
+  };
+
   const filteredOrders = (orders || []).filter(order => {
-    const matchesSearch = order?.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order?.customerName?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || order?.status === statusFilter;
-    const matchesDate = dateFilter === 'all' || order?.date === dateFilter;
+    const rawId: any = (order as any)?.orderNumber ?? order?.id;
+    const idLc = typeof rawId === 'string' ? rawId.toLowerCase() : (rawId != null ? String(rawId).toLowerCase() : '');
+    const nameLc = order?.customerName ? order.customerName.toLowerCase() : '';
+    const q = searchTerm.toLowerCase();
+    const matchesSearch = idLc.includes(q) || nameLc.includes(q);
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'completed' ? isCompleted(order?.status) : statusFilter === 'cancelled' ? isCancelled(order?.status) : true);
+    // Date filter placeholder (kept for future enhancement)
+    const matchesDate = true;
     return matchesSearch && matchesStatus && matchesDate;
   });
 
-  const totalRevenue = (filteredOrders || [])
-    .filter(order => order?.status === 'completed')
-    .reduce((sum, order) => sum + (order?.total || 0), 0);
+  const formatDateTime = (iso?: string) => {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    const date = d.toLocaleDateString();
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `${date} at ${time}`;
+  };
 
-  const completedOrders = (filteredOrders || []).filter(order => order?.status === 'completed').length;
-  const cancelledOrders = (filteredOrders || []).filter(order => order?.status === 'cancelled').length;
+  const totalRevenue = (filteredOrders || [])
+    .filter(order => isCompleted(order?.status))
+    .reduce((sum, order) => sum + Number(order?.totalAmount ?? order?.total ?? 0), 0);
+
+  const completedOrders = (filteredOrders || []).filter(order => isCompleted(order?.status)).length;
+  const cancelledOrders = (filteredOrders || []).filter(order => isCancelled(order?.status)).length;
 
   if (loading) {
     return (
@@ -202,10 +233,11 @@ export const OrderHistory: React.FC = () => {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-semibold text-lg">{order.id}</h3>
-                    <Badge variant={order.status === 'completed' ? 'default' : 'destructive'}>
-                      {order.status === 'completed' ? 'Completed' : 'Cancelled'}
-                    </Badge>
+                    <h3 className="font-semibold text-lg">{(order as any)?.orderNumber ?? order.id}</h3>
+                    {(() => {
+                      const b = getStatusBadge(order.status);
+                      return <Badge variant={b.variant}>{b.label}</Badge>;
+                    })()}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
@@ -214,21 +246,25 @@ export const OrderHistory: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Date & Time</p>
-                      <p className="font-medium">{order.date} at {order.time}</p>
+                      <p className="font-medium">{formatDateTime(order.createdAt)}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Items</p>
-                      <p className="font-medium">{order.items.join(', ')}</p>
+                      <p className="font-medium">
+                        {Array.isArray(order.items)
+                          ? (order.items as any[]).map((it: any) => (typeof it === 'string' ? it : `${it.name} x${it.quantity}`)).join(', ')
+                          : ''}
+                      </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Payment Method</p>
-                      <p className="font-medium">{order.paymentMethod}</p>
+                      <p className="font-medium">{order.paymentMethod || '-'}</p>
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 ml-4">
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-green-600">৳{order.total}</p>
+                    <p className="text-2xl font-bold text-green-600">৳{Number(order.totalAmount ?? order.total ?? 0)}</p>
                     <p className="text-sm text-muted-foreground">Total</p>
                   </div>
                   <Button variant="outline" size="sm">

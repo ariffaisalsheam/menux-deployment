@@ -15,7 +15,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   // Refresh user data when dashboard loads to get latest subscription plan
   useEffect(() => {
     refreshUser();
-  }, [refreshUser]);
+  }, []); // Empty dependency array - only run once on mount
 
   return (
     <SidebarProvider>

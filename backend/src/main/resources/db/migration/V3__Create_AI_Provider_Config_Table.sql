@@ -23,10 +23,8 @@ CREATE INDEX idx_ai_provider_configs_primary ON ai_provider_configs(is_primary);
 CREATE INDEX idx_ai_provider_configs_type ON ai_provider_configs(type);
 CREATE INDEX idx_ai_provider_configs_created_at ON ai_provider_configs(created_at);
 
--- Ensure only one primary provider at a time
-CREATE UNIQUE INDEX idx_ai_provider_configs_unique_primary 
-ON ai_provider_configs(is_primary) 
-WHERE is_primary = TRUE;
+-- Note: H2 doesn't support partial unique indexes with WHERE clause
+-- The unique constraint for primary provider will be enforced at application level
 
 -- Add comments for documentation
 COMMENT ON TABLE ai_provider_configs IS 'Configuration table for AI providers supporting multiple services with encryption and fallback';

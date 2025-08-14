@@ -5,6 +5,9 @@ import { QrCode, Smartphone, Brain, BarChart3, Clock, Shield } from "lucide-reac
 import { useAuth } from "@/contexts/AuthContext"
 import { Navbar } from "@/components/layout/Navbar"
 import { Footer } from "@/components/layout/Footer"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 
 export default function LandingPage() {
   const { isAuthenticated, user } = useAuth()
@@ -42,9 +45,29 @@ export default function LandingPage() {
                 {isAuthenticated ? 'Go to Dashboard' : 'Start Free Trial'}
               </Button>
             </Link>
-            <Button variant="outline" size="lg" className="text-lg px-8 py-3">
-              Watch Demo
-            </Button>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="lg" className="text-lg px-8 py-3">
+                  Watch Demo
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-3xl p-0 overflow-hidden">
+                <DialogHeader>
+                  <DialogTitle className="sr-only">Product Demo</DialogTitle>
+                </DialogHeader>
+                <div className="aspect-video bg-black">
+                  {/* Replace the src with your actual demo video URL */}
+                  <iframe
+                    className="w-full h-full"
+                    src="https://www.youtube.com/embed/VIDEO_ID?rel=0"
+                    title="Menu.X Demo"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </section>
@@ -229,9 +252,53 @@ export default function LandingPage() {
           <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
             Join hundreds of restaurants across Bangladesh that have already modernized their operations with Menu.X
           </p>
-          <Button size="lg" variant="secondary" className="text-lg px-8 py-3">
-            Start Your Free Trial Today
-          </Button>
+          <Link to="/register">
+            <Button size="lg" variant="secondary" className="text-lg px-8 py-3">
+              Start Your Free Trial Today
+            </Button>
+          </Link>
+        </div>
+      </section>
+
+      {/* Contact Section */}
+      <section id="contact" className="py-20 bg-white dark:bg-background">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Get in touch</h2>
+            <p className="text-gray-600 dark:text-muted-foreground mt-2">Questions, demos, or support — we’re here to help.</p>
+          </div>
+          <div className="grid gap-8 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Contact Information</CardTitle>
+                <CardDescription>Reach out directly — we typically respond within 24 hours.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p><span className="font-medium">Email:</span> <a className="text-blue-600 hover:underline" href="mailto:support@menux.app">support@menux.app</a></p>
+                <p><span className="font-medium">Phone:</span> +880 1234-567890</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Send a message</CardTitle>
+                <CardDescription>We’ll email you back as soon as possible.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input placeholder="Your name" required />
+                    <Input placeholder="Your email" type="email" required />
+                  </div>
+                  <Input placeholder="Subject" required />
+                  <Textarea placeholder="How can we help?" rows={4} required />
+                  <div className="flex items-center justify-between">
+                    <a className="text-sm text-blue-600 hover:underline" href="mailto:support@menux.app">Or email us directly</a>
+                    <Button type="submit">Send</Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </section>
 

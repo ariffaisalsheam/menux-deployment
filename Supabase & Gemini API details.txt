@@ -1,5 +1,0 @@
-Gemini API: AIzaSyAuWkC4FLccs0EZs0prOufuBk2ojWaCb2E
-D.B Pass: 007$he@M
-Connection string: postgresql://postgres:007$he@M@db.fxxbzrxcakzbbdvxocsu.supabase.co:5432/postgres
-Project URL: https://fxxbzrxcakzbbdvxocsu.supabase.co
-API (Anon key) : eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4eGJ6cnhjYWt6YmJkdnhvY3N1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NDA3NDIsImV4cCI6MjA3MDQxNjc0Mn0.Uly8ezniDP0GjHH5oAi1YbYOY_SbHA_bBaDjDdcOCL8

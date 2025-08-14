@@ -16,11 +16,17 @@ public class CreateAIProviderRequest {
     private String apiKey;
     
     private String endpoint;
-    
+
+    private String providerId; // for CUSTOM / OPENAI_COMPATIBLE providers
+
+    private String model;
+
+    private String modelDisplayName;
+
     private Boolean isActive = false;
-    
+
     private Boolean isPrimary = false;
-    
+
     private String settings;
 
     // Constructors
@@ -44,6 +50,15 @@ public class CreateAIProviderRequest {
 
     public String getEndpoint() { return endpoint; }
     public void setEndpoint(String endpoint) { this.endpoint = endpoint; }
+
+    public String getProviderId() { return providerId; }
+    public void setProviderId(String providerId) { this.providerId = providerId; }
+
+    public String getModel() { return model; }
+    public void setModel(String model) { this.model = model; }
+
+    public String getModelDisplayName() { return modelDisplayName; }
+    public void setModelDisplayName(String modelDisplayName) { this.modelDisplayName = modelDisplayName; }
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }

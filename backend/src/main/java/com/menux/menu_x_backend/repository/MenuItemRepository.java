@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
@@ -34,4 +35,22 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
 
     @Query("SELECT COUNT(mi) FROM MenuItem mi WHERE mi.menu.restaurant.id = :restaurantId AND mi.isAvailable = true")
     long countIsAvailableByRestaurantId(@Param("restaurantId") Long restaurantId);
+
+    @Query("SELECT mi FROM MenuItem mi WHERE mi.menu.restaurant.id = :restaurantId AND mi.name = :name AND mi.isAvailable = true")
+    Optional<MenuItem> findByNameAndRestaurantId(@Param("name") String name, @Param("restaurantId") Long restaurantId);
+
+    // Fetch owning restaurantId for a MenuItem without triggering lazy loads
+    @Query("SELECT mi.menu.restaurant.id FROM MenuItem mi WHERE mi.id = :itemId")
+    Long findRestaurantIdByMenuItemId(@Param("itemId") Long itemId);
+
+    // Ordered queries for consistent display order
+    @Query("SELECT mi FROM MenuItem mi WHERE mi.menu.restaurant.id = :restaurantId ORDER BY mi.displayOrder ASC, mi.name ASC")
+    List<MenuItem> findByRestaurantIdOrdered(@Param("restaurantId") Long restaurantId);
+
+    @Query("SELECT mi FROM MenuItem mi WHERE mi.menu.restaurant.id = :restaurantId AND mi.isAvailable = true ORDER BY mi.displayOrder ASC, mi.name ASC")
+    List<MenuItem> findByRestaurantIdAndIsAvailableTrueOrdered(@Param("restaurantId") Long restaurantId);
+
+    // Recent updates for activity feed
+    @Query("SELECT mi FROM MenuItem mi WHERE mi.menu.restaurant.id = :restaurantId ORDER BY mi.updatedAt DESC")
+    List<MenuItem> findRecentUpdatedByRestaurant(@Param("restaurantId") Long restaurantId);
 }

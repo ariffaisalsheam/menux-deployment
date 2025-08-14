@@ -1,4 +1,6 @@
 package com.menux.menu_x_backend.entity;
+ 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
@@ -12,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "menu_items")
+@jakarta.persistence.Table(name = "menu_items")
 public class MenuItem {
     
     @Id
@@ -64,10 +66,12 @@ public class MenuItem {
     private LocalDateTime updatedAt;
     
     // Relationships
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "menu_id", nullable = false)
     private Menu menu;
     
+    @JsonIgnore
     @OneToMany(mappedBy = "menuItem", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<OrderItem> orderItems = new ArrayList<>();
     
@@ -100,9 +104,10 @@ public class MenuItem {
     
     // Helper methods
     public String getDisplayDescription() {
-        // Return AI description if available and restaurant is Pro, otherwise regular description
-        if (aiDescription != null && !aiDescription.trim().isEmpty() && 
-            menu != null && menu.getRestaurant() != null && menu.getRestaurant().isPro()) {
+        // Return AI description if available, otherwise regular description
+        // Note: Restaurant Pro status check removed to prevent lazy loading issues
+        // Pro status should be checked at the service/controller level
+        if (aiDescription != null && !aiDescription.trim().isEmpty()) {
             return aiDescription;
         }
         return description;

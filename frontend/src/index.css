@@ -96,3 +96,10 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Utilities */
+@layer utilities {
+  /* Hide scrollbars for horizontal pill scrollers */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}

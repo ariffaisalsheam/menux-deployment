@@ -20,6 +20,7 @@ export function useApi<T>(
   const apiFunctionRef = useRef(apiFunction);
   const onSuccessRef = useRef(onSuccess);
   const onErrorRef = useRef(onError);
+  const hasExecutedRef = useRef(false);
 
   // Update refs when props change
   useEffect(() => {
@@ -43,7 +44,23 @@ export function useApi<T>(
       onSuccessRef.current?.(result);
       return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      let errorMessage = 'An unexpected error occurred';
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null && 'response' in error) {
+        const axiosError = error as any;
+        if (axiosError.response?.status === 403) {
+          errorMessage = 'Access denied. You do not have permission to perform this action.';
+        } else if (axiosError.response?.status === 404) {
+          errorMessage = 'The requested resource was not found.';
+        } else if (axiosError.response?.status >= 500) {
+          errorMessage = 'Unable to connect to server. Please contact support if this issue persists.';
+        } else if (!axiosError.response) {
+          errorMessage = 'Unable to connect to server. Please check your internet connection.';
+        }
+      }
+
       setState({ data: null, loading: false, error: errorMessage });
       onErrorRef.current?.(errorMessage);
       throw error;
@@ -55,10 +72,11 @@ export function useApi<T>(
   }, []);
 
   useEffect(() => {
-    if (immediate) {
+    if (immediate && !hasExecutedRef.current) {
+      hasExecutedRef.current = true;
       execute();
     }
-  }, [immediate, execute]);
+  }, [immediate]); // Removed execute from dependencies to prevent infinite loop
 
   return {
     ...state,
@@ -99,7 +117,23 @@ export function useApiMutation<T, P = any>(
       onSuccessRef.current?.(result);
       return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      let errorMessage = 'An unexpected error occurred';
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null && 'response' in error) {
+        const axiosError = error as any;
+        if (axiosError.response?.status === 403) {
+          errorMessage = 'Access denied. You do not have permission to perform this action.';
+        } else if (axiosError.response?.status === 404) {
+          errorMessage = 'The requested resource was not found.';
+        } else if (axiosError.response?.status >= 500) {
+          errorMessage = 'Unable to connect to server. Please contact support if this issue persists.';
+        } else if (!axiosError.response) {
+          errorMessage = 'Unable to connect to server. Please check your internet connection.';
+        }
+      }
+
       setState(prev => ({ ...prev, loading: false, error: errorMessage }));
       onErrorRef.current?.(errorMessage);
       throw error;

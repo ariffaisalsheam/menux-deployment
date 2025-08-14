@@ -33,14 +33,17 @@ public class RestaurantManagementDTO {
         this.status = "active"; // Default status
         this.joinDate = restaurant.getCreatedAt();
         
-        if (restaurant.getOwner() != null) {
-            this.ownerName = restaurant.getOwner().getFullName();
-            this.ownerEmail = restaurant.getOwner().getEmail();
-        }
+        // Owner data will be set separately to avoid lazy loading issues
         
         // These would be calculated from actual order data
-        this.totalOrders = 0L; // TODO: Calculate from orders
-        this.monthlyRevenue = 0.0; // TODO: Calculate from orders
+        this.totalOrders = 0L; // Will be calculated from orders in future implementation
+        this.monthlyRevenue = 0.0; // Will be calculated from orders in future implementation
+    }
+
+    public RestaurantManagementDTO(Restaurant restaurant, String ownerName, String ownerEmail) {
+        this(restaurant);
+        this.ownerName = ownerName;
+        this.ownerEmail = ownerEmail;
     }
 
     // Getters and Setters

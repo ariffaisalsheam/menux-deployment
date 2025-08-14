@@ -19,7 +19,7 @@ export function Navbar() {
           <span className="font-bold">Menu.X</span>
         </Link>
 
-        <nav className="hidden items-center gap-6 md:flex">
+        <nav className="hidden items-center gap-6 md:flex" aria-label="Primary">
           <a href="#features" className="text-sm text-muted-foreground hover:text-foreground">Features</a>
           <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground">Pricing</a>
           <a href="#contact" className="text-sm text-muted-foreground hover:text-foreground">Contact</a>
@@ -38,13 +38,19 @@ export function Navbar() {
               <Link to="/register"><Button size="sm">Get Started</Button></Link>
             </>
           )}
-          <button className="md:hidden ml-2" aria-label="Toggle Menu" onClick={() => setOpen(v => !v)}>
+          <button
+            className="md:hidden ml-2"
+            aria-label="Toggle Menu"
+            aria-expanded={open}
+            aria-controls="mobile-nav"
+            onClick={() => setOpen(v => !v)}
+          >
             <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
           </button>
         </div>
       </div>
       {open && (
-        <div className="border-t md:hidden">
+        <div id="mobile-nav" className="border-t md:hidden">
           <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4">
             <a href="#features" onClick={() => setOpen(false)} className="text-sm">Features</a>
             <a href="#pricing" onClick={() => setOpen(false)} className="text-sm">Pricing</a>

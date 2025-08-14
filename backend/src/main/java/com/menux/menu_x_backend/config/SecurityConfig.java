@@ -16,11 +16,15 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.security.SecureRandom;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpMethod;
 
 import java.util.Arrays;
 
@@ -35,15 +39,19 @@ public class SecurityConfig {
     @Autowired
     private UserDetailsService userDetailsService;
 
+    @Value("${cors.allowed-origins:http://localhost:5173}")
+    private String allowedOrigins;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        // Use BCrypt with strength 12 for better security (default is 10)
+        return new BCryptPasswordEncoder(12, new SecureRandom());
     }
 
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService);
+    // Use non-deprecated constructor that accepts UserDetailsService directly
+    DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder());
         return authProvider;
     }
@@ -56,11 +64,17 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // Split allowed origins by comma and trim whitespace
+        String[] origins = allowedOrigins.split(",");
+        for (int i = 0; i < origins.length; i++) {
+            origins[i] = origins[i].trim();
+        }
+        // Use allowedOriginPatterns instead of allowedOrigins when allowCredentials is true
+        configuration.setAllowedOriginPatterns(Arrays.asList(origins));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
@@ -74,6 +88,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
                 // Public endpoints
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/menu/public/**").permitAll()
@@ -87,9 +102,20 @@ public class SecurityConfig {
                 .requestMatchers("/api/orders/manage/**").hasRole("RESTAURANT_OWNER")
                 .requestMatchers("/api/feedback/manage/**").hasRole("RESTAURANT_OWNER")
                 .requestMatchers("/api/ai/**").hasRole("RESTAURANT_OWNER")
-                
+                .requestMatchers("/api/tables/**").hasRole("RESTAURANT_OWNER")
+                .requestMatchers("/api/analytics/restaurant").hasRole("RESTAURANT_OWNER")
+                .requestMatchers("/api/analytics/restaurant/basic").hasRole("RESTAURANT_OWNER")
+                .requestMatchers("/api/analytics/restaurant/feedback").hasRole("RESTAURANT_OWNER")
+                .requestMatchers("/api/analytics/restaurant/activity").hasRole("RESTAURANT_OWNER")
+                .requestMatchers("/api/qr/**").hasRole("RESTAURANT_OWNER")
+
+                // User profile endpoints (authenticated users)
+                .requestMatchers("/api/user/**").authenticated()
+
                 // Super Admin endpoints
                 .requestMatchers("/api/admin/**").hasRole("SUPER_ADMIN")
+                .requestMatchers("/api/analytics/restaurant/**").hasRole("SUPER_ADMIN")
+                .requestMatchers("/api/public/settings/**").permitAll()
                 
                 // All other endpoints require authentication
                 .anyRequest().authenticated()

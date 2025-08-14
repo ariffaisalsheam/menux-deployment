@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "order_items")
+@jakarta.persistence.Table(name = "order_items")
 public class OrderItem {
     
     @Id

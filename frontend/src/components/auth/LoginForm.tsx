@@ -77,7 +77,11 @@ export default function LoginForm() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
+              <div
+                role="alert"
+                aria-live="polite"
+                className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm"
+              >
                 {error}
               </div>
             )}
@@ -92,6 +96,8 @@ export default function LoginForm() {
                 onChange={handleChange}
                 required
                 placeholder="Enter your username"
+                autoComplete="username"
+                autoFocus
               />
             </div>
 
@@ -106,6 +112,7 @@ export default function LoginForm() {
                   onChange={handleChange}
                   required
                   placeholder="Enter your password"
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -125,6 +132,7 @@ export default function LoginForm() {
               type="submit"
               className="w-full"
               disabled={isLoading}
+              aria-busy={isLoading}
             >
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>

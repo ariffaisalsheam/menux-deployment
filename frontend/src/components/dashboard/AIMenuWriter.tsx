@@ -1,29 +1,68 @@
 import React, { useState } from 'react';
-import { Crown, Brain, Wand2, CheckCircle, ArrowRight, Sparkles } from 'lucide-react';
+import { Crown, Brain, Wand2, CheckCircle, ArrowRight, Sparkles, RefreshCw, Copy } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
+import { aiAPI } from '../../services/api';
+import { AIErrorHandler } from '../common/AIErrorHandler';
+import { withAIRetry } from '../../utils/retry';
 
 export const AIMenuWriter: React.FC = () => {
   const { user } = useAuth();
   const [menuItemName, setMenuItemName] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedDescription, setGeneratedDescription] = useState('');
+  const [error, setError] = useState('');
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const isPro = user?.subscriptionPlan === 'PRO';
 
   const handleGenerateDescription = async () => {
     if (!menuItemName.trim()) return;
-    
+
     setIsGenerating(true);
-    // Simulate AI generation delay
-    setTimeout(() => {
-      setGeneratedDescription(
-        `Savor the rich, aromatic flavors of our expertly crafted ${menuItemName}, prepared with authentic spices and the finest ingredients to create an unforgettable dining experience that will leave you craving for more.`
+    setError('');
+    setRetryCount(0);
+
+    try {
+      const response = await withAIRetry(
+        () => aiAPI.generateDescription(menuItemName.trim()),
+        (attempt, error) => {
+          setRetryCount(attempt);
+          console.log(`AI generation attempt ${attempt} failed:`, error.message);
+        }
       );
+
+      const desc = response.description || response.result || response.text || response.content;
+
+      if (desc && desc.trim()) {
+        setGeneratedDescription(desc.trim());
+      } else {
+        setGeneratedDescription('Generated description not available');
+      }
+    } catch (error: any) {
+      console.error('Failed to generate description:', error);
+
+      // Extract detailed error message from the response
+      let errorMessage = 'Failed to generate description. Please try again.';
+
+      if (error.response?.data?.error) {
+        // Use the exact error message from the backend
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setError(errorMessage);
+      // Clear any previous description when error occurs
+      setGeneratedDescription('');
+    } finally {
       setIsGenerating(false);
-    }, 2000);
+    }
   };
 
   if (!isPro) {
@@ -238,19 +277,68 @@ export const AIMenuWriter: React.FC = () => {
               </>
             )}
           </Button>
-          
+
+          {error && (
+            <AIErrorHandler
+              error={error}
+              onRetry={handleGenerateDescription}
+              className="mb-4"
+            />
+          )}
+
+          {retryCount > 0 && isGenerating && (
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 mb-4">
+              <p className="text-sm text-blue-700">
+                Retrying... (Attempt {retryCount + 1})
+              </p>
+            </div>
+          )}
+
           {generatedDescription && (
             <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
               <h4 className="font-medium mb-2">Generated Description:</h4>
               <p className="text-sm italic">{generatedDescription}</p>
               <div className="flex gap-2 mt-3">
-                <Button size="sm" variant="outline">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleGenerateDescription}
+                  disabled={isGenerating}
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
                   Regenerate
                 </Button>
-                <Button size="sm">
-                  Use This Description
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      if (navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(generatedDescription);
+                      } else {
+                        const ta = document.createElement('textarea');
+                        ta.value = generatedDescription;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(ta);
+                      }
+                      setCopySuccess(true);
+                      setTimeout(() => setCopySuccess(false), 2000);
+                    } catch (e) {
+                      console.warn('Clipboard copy failed', e);
+                    }
+                  }}
+                >
+                  <Copy className="w-3 h-3 mr-1" />
+                  {copySuccess ? 'Copied!' : 'Copy Description'}
                 </Button>
               </div>
+              {copySuccess && (
+                <div className="mt-2 text-sm text-green-600 flex items-center">
+                  <CheckCircle className="w-4 h-4 mr-1" />
+                  Description copied to clipboard!
+                </div>
+              )}
             </div>
           )}
         </CardContent>

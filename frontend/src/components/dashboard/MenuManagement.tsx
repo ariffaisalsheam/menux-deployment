@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Edit, Trash2, Search, Filter, Crown } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Plus, Edit, Trash2, Search, Filter, Crown, ArrowUp, ArrowDown, LayoutGrid, Table as TableIcon, CheckSquare, Square } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -9,11 +9,12 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useAuth } from '../../contexts/AuthContext';
-import { menuAPI } from '../../services/api';
+import { menuAPI, aiAPI } from '../../services/api';
 import { useApi, useApiMutation } from '../../hooks/useApi';
 import { LoadingSkeleton } from '../common/LoadingSpinner';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ErrorDisplay } from '../common/ErrorDisplay';
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 
 interface MenuItem {
   id: number;
@@ -40,6 +41,13 @@ export const MenuManagement: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [view, setView] = useState<'grid' | 'table'>('grid');
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [orderDirty, setOrderDirty] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+
   const [formData, setFormData] = useState<MenuItemFormData>({
     name: '',
     description: '',
@@ -59,6 +67,15 @@ export const MenuManagement: React.FC = () => {
     error,
     refetch
   } = useApi<MenuItem[]>(() => menuAPI.getMenuItems());
+
+  // keep local list for reordering
+  useEffect(() => {
+    if (Array.isArray(menuItems)) {
+      setItems(menuItems);
+      setOrderDirty(false);
+      setSelectedIds([]);
+    }
+  }, [menuItems]);
 
   // Create menu item mutation
   const createMutation = useApiMutation(
@@ -158,7 +175,69 @@ export const MenuManagement: React.FC = () => {
     }
   };
 
-  const safeMenuItems = menuItems ?? [];
+  // Reorder helpers
+  const moveItem = (id: number, direction: 'up' | 'down') => {
+    setItems((prev) => {
+      const idx = prev.findIndex(i => i.id === id);
+      if (idx === -1) return prev;
+      const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (newIdx < 0 || newIdx >= prev.length) return prev;
+      const copy = [...prev];
+      const [removed] = copy.splice(idx, 1);
+      copy.splice(newIdx, 0, removed);
+      setOrderDirty(true);
+      return copy;
+    });
+  };
+
+  const saveOrder = async () => {
+    const payload = items.map((it, index) => ({ id: it.id, displayOrder: index + 1 }));
+    try {
+      await menuAPI.reorderMenuItems(payload);
+      setOrderDirty(false);
+      await refetch();
+    } catch (e) {
+      // noop - ErrorDisplay covers
+    }
+  };
+
+  // Table selection
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
+  const toggleSelectAll = (current: MenuItem[]) => {
+    const allIds = current.map(i => i.id);
+    const allSelected = allIds.every(id => selectedIds.includes(id));
+    setSelectedIds(allSelected ? [] : allIds);
+  };
+  const bulkSetAvailability = async (available: boolean, ids: number[]) => {
+    for (const id of ids) {
+      await updateMutation.mutate({ id, data: { isAvailable: available } });
+    }
+    setSelectedIds([]);
+  };
+
+  // AI generate description (Pro only)
+  const handleGenerateAI = async () => {
+    if (!user || user.subscriptionPlan !== 'PRO') return;
+    if (!formData.name.trim()) return;
+    setAiError('');
+    setAiLoading(true);
+    try {
+      const resp = await aiAPI.generateDescription(formData.name.trim());
+      const desc = resp.description || resp.result || resp.text || resp.content;
+      setFormData(prev => ({ ...prev, description: (desc && String(desc).trim()) || prev.description }));
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Failed to generate description';
+      setAiError(msg);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+
+
+  const safeMenuItems = Array.isArray(items) ? items : [];
   const filteredItems = safeMenuItems.filter(item => {
     const matchesSearch = item?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item?.description?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -197,10 +276,23 @@ export const MenuManagement: React.FC = () => {
           <Badge variant={isPro ? 'default' : 'secondary'}>
             {user?.subscriptionPlan || 'Basic'} Plan
           </Badge>
-          <Button onClick={handleAddItem}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Menu Item
-          </Button>
+          <div className="flex items-center gap-1 mr-2">
+            <Button variant={view === 'grid' ? 'default' : 'outline'} size="sm" onClick={() => setView('grid')}>
+              <LayoutGrid className="w-4 h-4 mr-1" /> Grid
+            </Button>
+            <Button variant={view === 'table' ? 'default' : 'outline'} size="sm" onClick={() => setView('table')}>
+              <TableIcon className="w-4 h-4 mr-1" /> Table
+            </Button>
+            <Button variant="secondary" size="sm" disabled={!orderDirty} onClick={saveOrder} className="ml-2">
+              Save Order
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleAddItem}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Menu Item
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -262,52 +354,129 @@ export const MenuManagement: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Menu Items Grid */}
-      <div className="grid gap-4">
-        {filteredItems.map((item) => (
-          <Card key={item.id} className={!item.isAvailable ? 'opacity-60' : ''}>
-            <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-semibold text-lg">{item.name}</h3>
-                    <Badge variant={item.isAvailable ? 'default' : 'secondary'}>
-                      {item.isAvailable ? 'Available' : 'Unavailable'}
-                    </Badge>
-                    <Badge variant="outline">{item.category}</Badge>
+      {/* Items - Grid or Table */}
+      {view === 'grid' ? (
+        <div className="grid gap-4">
+          {filteredItems.map((item, idx) => (
+            <Card key={item.id} className={!item.isAvailable ? 'opacity-60' : ''}>
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="font-semibold text-lg">{item.name}</h3>
+                      <Badge variant={item.isAvailable ? 'default' : 'secondary'}>
+                        {item.isAvailable ? 'Available' : 'Unavailable'}
+                      </Badge>
+                      <Badge variant="outline">{item.category}</Badge>
+                    </div>
+                    <p className="text-muted-foreground mb-2">{item.description}</p>
+                    <p className="text-2xl font-bold text-green-600">৳{item.price}</p>
                   </div>
-                  <p className="text-muted-foreground mb-2">{item.description}</p>
-                  <p className="text-2xl font-bold text-green-600">৳{item.price}</p>
+                  <div className="flex items-center gap-2 ml-4">
+                    <div className="flex flex-col gap-1 mr-2">
+                      <Button variant="ghost" size="icon" onClick={() => moveItem(item.id, 'up')} disabled={idx === 0}>
+                        <ArrowUp className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => moveItem(item.id, 'down')} disabled={idx === filteredItems.length - 1}>
+                        <ArrowDown className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleToggleAvailability(item.id)}
+                    >
+                      {item.isAvailable ? 'Mark Unavailable' : 'Mark Available'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditItem(item)}
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteItem(item.id)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 ml-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleToggleAvailability(item.id)}
-                  >
-                    {item.isAvailable ? 'Mark Unavailable' : 'Mark Available'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEditItem(item)}
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDeleteItem(item.id)}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <button className="flex items-center gap-1 text-sm underline" onClick={() => toggleSelectAll(filteredItems)}>
+                  {(filteredItems.length > 0 && filteredItems.every(i => selectedIds.includes(i.id))) ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                  Select All
+                </button>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" disabled={selectedIds.length === 0} onClick={() => bulkSetAvailability(true, selectedIds)}>Set Available</Button>
+                <Button size="sm" variant="outline" disabled={selectedIds.length === 0} onClick={() => bulkSetAvailability(false, selectedIds)}>Set Unavailable</Button>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted-foreground">
+                    <th className="w-10"></th>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                    <th className="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredItems.map((item, idx) => (
+                    <tr key={item.id} className="border-t">
+                      <td>
+                        <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} />
+                      </td>
+                      <td className="py-2">{item.name}</td>
+                      <td>{item.category}</td>
+                      <td>৳{item.price}</td>
+                      <td>
+                        <Badge variant={item.isAvailable ? 'default' : 'secondary'}>
+                          {item.isAvailable ? 'Available' : 'Unavailable'}
+                        </Badge>
+                      </td>
+                      <td className="py-2">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="ghost" size="icon" onClick={() => moveItem(item.id, 'up')} disabled={idx === 0}>
+                            <ArrowUp className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => moveItem(item.id, 'down')} disabled={idx === filteredItems.length - 1}>
+                            <ArrowDown className="w-4 h-4" />
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleToggleAvailability(item.id)}>
+                            {item.isAvailable ? 'Mark Unavailable' : 'Mark Available'}
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleEditItem(item)}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleDeleteItem(item.id)} className="text-red-600 hover:text-red-700">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {filteredItems.length === 0 && (
         <Card>
@@ -403,6 +572,27 @@ export const MenuManagement: React.FC = () => {
                 placeholder="Describe your menu item"
               />
             </div>
+            <div className="grid grid-cols-4 items-center gap-4 -mt-2">
+              <div className="col-start-2 col-span-3">
+                {isPro ? (
+                  <Button size="sm" variant="secondary" onClick={handleGenerateAI} disabled={aiLoading || !formData.name.trim()}>
+                    {aiLoading ? 'Generating…' : 'Generate with AI'}
+                  </Button>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button size="sm" variant="secondary" disabled>
+                          Generate with AI (Pro)
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Upgrade to Pro to generate AI descriptions</TooltipContent>
+                  </Tooltip>
+                )}
+                {aiError && <p className="text-xs text-red-600 mt-1">{aiError}</p>}
+              </div>
+            </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="price" className="text-right">
                 Price (৳)
@@ -431,7 +621,7 @@ export const MenuManagement: React.FC = () => {
                   <SelectItem value="APPETIZER">Appetizer</SelectItem>
                   <SelectItem value="MAIN_COURSE">Main Course</SelectItem>
                   <SelectItem value="DESSERT">Dessert</SelectItem>
-                  <SelectItem value="BEVERAGES">Beverages</SelectItem>
+                  <SelectItem value="BEVERAGE">Beverages</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -465,6 +655,8 @@ export const MenuManagement: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
     </div>
   );
 };
