@@ -82,4 +82,4 @@ app:
   frontend:
     # Frontend base URL used when generating QR code links
     # Override with APP_FRONTEND_URL env var in deployment
-    url: ${APP_FRONTEND_URL:http://localhost:5173}
+    url: ${APP_FRONTEND_URL:https://menuxbd.vercel.app}
