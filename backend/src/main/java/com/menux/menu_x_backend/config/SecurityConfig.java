@@ -83,45 +83,19 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(AbstractHttpConfigurer::disable)
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(authz -> authz
-                // Public endpoints
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/public/**").permitAll()
-                .requestMatchers("/api/menu/public/**").permitAll()
-                .requestMatchers("/api/menu/restaurant/**").permitAll()
-                .requestMatchers("/api/feedback/public/**").permitAll()
-                .requestMatchers("/api/orders/restaurant/**").permitAll()
-                
-                // Restaurant Owner endpoints
-                .requestMatchers("/api/restaurant/**").hasRole("RESTAURANT_OWNER")
-                .requestMatchers("/api/menu/manage/**").hasRole("RESTAURANT_OWNER")
-                .requestMatchers("/api/orders/manage/**").hasRole("RESTAURANT_OWNER")
-                .requestMatchers("/api/feedback/manage/**").hasRole("RESTAURANT_OWNER")
-                .requestMatchers("/api/ai/**").hasRole("RESTAURANT_OWNER")
-                .requestMatchers("/api/tables/**").hasRole("RESTAURANT_OWNER")
-                .requestMatchers("/api/analytics/restaurant").hasRole("RESTAURANT_OWNER")
-                .requestMatchers("/api/analytics/restaurant/basic").hasRole("RESTAURANT_OWNER")
-                .requestMatchers("/api/analytics/restaurant/feedback").hasRole("RESTAURANT_OWNER")
-                .requestMatchers("/api/analytics/restaurant/activity").hasRole("RESTAURANT_OWNER")
-                .requestMatchers("/api/qr/**").hasRole("RESTAURANT_OWNER")
-
-                // User profile endpoints (authenticated users)
-                .requestMatchers("/api/user/**").authenticated()
-
-                // Super Admin endpoints
-                .requestMatchers("/api/admin/**").hasRole("SUPER_ADMIN")
-                .requestMatchers("/api/analytics/restaurant/**").hasRole("SUPER_ADMIN")
-                .requestMatchers("/api/public/settings/**").permitAll()
-                
-                // All other endpoints require authentication
-                .anyRequest().authenticated()
-            )
-            .authenticationProvider(authenticationProvider())
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(customizer -> customizer.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(authorize -> authorize
+                        // Permit all OPTIONS requests for CORS preflight
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Group all public API endpoints
+                        .requestMatchers("/api/auth/**", "/api/public/**", "/api/menu/public/**", "/api/feedback/public/**").permitAll()
+                        // Secure all other endpoints
+                        .anyRequest().authenticated()
+                )
+                .authenticationProvider(authenticationProvider())
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
