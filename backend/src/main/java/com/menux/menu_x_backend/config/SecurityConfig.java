@@ -69,10 +69,11 @@ public class SecurityConfig {
         for (int i = 0; i < origins.length; i++) {
             origins[i] = origins[i].trim();
         }
-        // Use allowedOriginPatterns instead of allowedOrigins when allowCredentials is true
-        configuration.setAllowedOriginPatterns(Arrays.asList(origins));
+        // Use explicit origins and expose the Authorization header for JWT
+        configuration.setAllowedOrigins(Arrays.asList(origins));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
