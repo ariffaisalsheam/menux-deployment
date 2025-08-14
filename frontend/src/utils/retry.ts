@@ -158,11 +158,16 @@ export class CircuitBreaker {
   private failures = 0;
   private lastFailureTime = 0;
   private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
+  threshold: number;
+  timeout: number;
 
   constructor(
-    private threshold = 5,
-    private timeout = 60000 // 1 minute
-  ) {}
+    threshold = 5,
+    timeout = 60000 // 1 minute
+  ) {
+    this.threshold = threshold;
+    this.timeout = timeout;
+  }
 
   async execute<T>(operation: () => Promise<T>): Promise<T> {
     if (this.state === 'OPEN') {

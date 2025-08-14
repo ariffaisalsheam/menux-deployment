@@ -21,6 +21,21 @@ import {
   Legend
 } from 'recharts';
 
+
+// Structured AI Strategy Brief schema
+interface AIStrategyBrief {
+  salesDrivers?: string[];
+  riskAlerts?: string[];
+  forecast?: {
+    next7DaysRevenueRange?: [number, number];
+    expectedOrderRange?: [number, number];
+  };
+  menuSuggestions?: string[];
+  staffingTips?: string[];
+  marketingIdeas?: string[];
+  summary?: string;
+}
+
 export const AdvancedAnalytics: React.FC = () => {
   const { user } = useAuth();
   const isPro = user?.subscriptionPlan === 'PRO';
@@ -192,7 +207,7 @@ export const AdvancedAnalytics: React.FC = () => {
   // AI Strategy Brief (separate from feedback insights)
   const [aiPlanLoading, setAiPlanLoading] = useState(false);
   const [aiPlanError, setAiPlanError] = useState<string | null>(null);
-  const [aiPlanJson, setAiPlanJson] = useState<any | null>(null);
+  const [aiPlanData, setAiPlanData] = useState<AIStrategyBrief | null>(null);
   const [aiPlanText, setAiPlanText] = useState<string | null>(null);
   const [aiPlanUpdatedAt, setAiPlanUpdatedAt] = useState<string | null>(null);
 
@@ -201,7 +216,7 @@ export const AdvancedAnalytics: React.FC = () => {
   const [aiForecastError, setAiForecastError] = useState<string | null>(null);
   const [aiForecastJson, setAiForecastJson] = useState<any | null>(null);
 
-  
+
 
   const weeklyData = useMemo(() => {
     return (analytics?.weeklyTrends || []).map((w) => ({
@@ -258,7 +273,7 @@ export const AdvancedAnalytics: React.FC = () => {
     try {
       setAiPlanLoading(true);
       setAiPlanError(null);
-      setAiPlanJson(null);
+      setAiPlanData(null);
       setAiPlanText(null);
       const input = buildStrategyInput();
       if (!input) {
@@ -285,7 +300,11 @@ export const AdvancedAnalytics: React.FC = () => {
           const slice = jsonStr.slice(start, end + 1);
           try {
             const parsed = JSON.parse(slice);
-            setAiPlanJson(parsed);
+            setAiPlanData(parsed as AIStrategyBrief);
+            // Also set the summary text if it exists in the parsed data
+            if (parsed.summary) {
+              setAiPlanText(parsed.summary);
+            }
           } catch {
             setAiPlanText(raw);
           }
@@ -328,7 +347,7 @@ export const AdvancedAnalytics: React.FC = () => {
     return <ErrorDisplay error="Analytics data not available" onRetry={refetch} />;
   }
 
-  
+
 
   return (
     <div className="space-y-6">
@@ -425,67 +444,77 @@ export const AdvancedAnalytics: React.FC = () => {
           </CardHeader>
           <CardContent>
             {aiPlanError && <p className="text-sm text-red-600 mb-2">{aiPlanError}</p>}
-            {aiPlanJson ? (
+            {aiPlanData ? (
               <div className="space-y-4">
-                {Array.isArray(aiPlanJson.salesDrivers) && (
+                {aiPlanData?.salesDrivers && aiPlanData.salesDrivers.length > 0 && (
                   <div className="p-3 rounded-md bg-gray-50">
                     <h4 className="font-semibold mb-1">Sales Drivers</h4>
                     <ul className="list-disc pl-5 text-sm space-y-1">
-                      {aiPlanJson.salesDrivers.map((x: string, i: number) => (<li key={i}>{x}</li>))}
+                      {aiPlanData.salesDrivers.map((driver: string, i: number) => (
+                        <li key={i}>{driver}</li>
+                      ))}
                     </ul>
                   </div>
                 )}
-                {Array.isArray(aiPlanJson.riskAlerts) && (
+                {aiPlanData?.riskAlerts && aiPlanData.riskAlerts.length > 0 && (
                   <div className="p-3 rounded-md bg-gray-50">
                     <h4 className="font-semibold mb-1">Risk Alerts</h4>
                     <ul className="list-disc pl-5 text-sm space-y-1">
-                      {aiPlanJson.riskAlerts.map((x: string, i: number) => (<li key={i}>{x}</li>))}
+                      {aiPlanData.riskAlerts.map((alert: string, i: number) => (
+                        <li key={i}>{alert}</li>
+                      ))}
                     </ul>
                   </div>
                 )}
-                {aiPlanJson.forecast && (
+                {aiPlanData?.forecast && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-3 rounded-md bg-gray-50">
                       <p className="text-xs text-muted-foreground">Next 7 days revenue</p>
                       <p className="font-semibold">
-                        {Array.isArray(aiPlanJson.forecast.next7DaysRevenueRange) ? `৳${aiPlanJson.forecast.next7DaysRevenueRange[0]?.toLocaleString?.() || aiPlanJson.forecast.next7DaysRevenueRange[0]} - ৳${aiPlanJson.forecast.next7DaysRevenueRange[1]?.toLocaleString?.() || aiPlanJson.forecast.next7DaysRevenueRange[1]}` : '—'}
+                        {Array.isArray(aiPlanData.forecast.next7DaysRevenueRange) ? `৳${aiPlanData.forecast.next7DaysRevenueRange[0]?.toLocaleString?.() || aiPlanData.forecast.next7DaysRevenueRange[0]} - ৳${aiPlanData.forecast.next7DaysRevenueRange[1]?.toLocaleString?.() || aiPlanData.forecast.next7DaysRevenueRange[1]}` : '—'}
                       </p>
                     </div>
                     <div className="p-3 rounded-md bg-gray-50">
                       <p className="text-xs text-muted-foreground">Expected orders</p>
                       <p className="font-semibold">
-                        {Array.isArray(aiPlanJson.forecast.expectedOrderRange) ? `${aiPlanJson.forecast.expectedOrderRange[0]} - ${aiPlanJson.forecast.expectedOrderRange[1]}` : '—'}
+                        {Array.isArray(aiPlanData.forecast.expectedOrderRange) ? `${aiPlanData.forecast.expectedOrderRange[0]} - ${aiPlanData.forecast.expectedOrderRange[1]}` : '—'}
                       </p>
                     </div>
                   </div>
                 )}
-                {Array.isArray(aiPlanJson.menuSuggestions) && (
+                {aiPlanData.menuSuggestions && aiPlanData.menuSuggestions.length > 0 && (
                   <div className="p-3 rounded-md bg-gray-50">
                     <h4 className="font-semibold mb-1">Menu Suggestions</h4>
                     <ul className="list-disc pl-5 text-sm space-y-1">
-                      {aiPlanJson.menuSuggestions.map((x: string, i: number) => (<li key={i}>{x}</li>))}
+                      {aiPlanData.menuSuggestions.map((suggestion: string, i: number) => (
+                        <li key={i}>{suggestion}</li>
+                      ))}
                     </ul>
                   </div>
                 )}
-                {Array.isArray(aiPlanJson.staffingTips) && (
+                {aiPlanData.staffingTips && aiPlanData.staffingTips.length > 0 && (
                   <div className="p-3 rounded-md bg-gray-50">
                     <h4 className="font-semibold mb-1">Staffing Tips</h4>
                     <ul className="list-disc pl-5 text-sm space-y-1">
-                      {aiPlanJson.staffingTips.map((x: string, i: number) => (<li key={i}>{x}</li>))}
+                      {aiPlanData.staffingTips.map((tip: string, i: number) => (
+                        <li key={i}>{tip}</li>
+                      ))}
                     </ul>
                   </div>
                 )}
-                {Array.isArray(aiPlanJson.marketingIdeas) && (
+                {aiPlanData.marketingIdeas && aiPlanData.marketingIdeas.length > 0 && (
                   <div className="p-3 rounded-md bg-gray-50">
                     <h4 className="font-semibold mb-1">Marketing Ideas</h4>
                     <ul className="list-disc pl-5 text-sm space-y-1">
-                      {aiPlanJson.marketingIdeas.map((x: string, i: number) => (<li key={i}>{x}</li>))}
+                      {aiPlanData.marketingIdeas.map((idea: string, i: number) => (
+                        <li key={i}>{idea}</li>
+                      ))}
                     </ul>
                   </div>
                 )}
-                {aiPlanJson.summary && (
+                {aiPlanData.summary && (
                   <div className="p-3 rounded-md bg-gray-100 text-sm">
-                    {aiPlanJson.summary}
+                    {aiPlanData.summary}
                   </div>
                 )}
               </div>
