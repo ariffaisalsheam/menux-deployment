@@ -62,12 +62,12 @@ spring:
         connection.provider_disables_autocommit: false
         connection.autocommit: true
         connection.isolation: 2
-        jdbc.time_zone: UTC
+        jdbc.time_zone: GMT+6
         temp.use_jdbc_metadata_defaults: false
   # JSON serialization/deserialization timezone for API responses
   # Override via APP_TIME_ZONE env var (e.g., Asia/Dhaka)
   jackson:
-    time-zone: ${APP_TIME_ZONE:UTC}
+    time-zone: ${APP_TIME_ZONE:GMT+6}
   flyway:
     enabled: false
 
