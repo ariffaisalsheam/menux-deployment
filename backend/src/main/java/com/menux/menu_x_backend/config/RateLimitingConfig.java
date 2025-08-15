@@ -25,7 +25,8 @@ public class RateLimitingConfig {
 
     public static class RateLimitingFilter extends OncePerRequestFilter {
 
-        private final ConcurrentHashMap<String, ClientRequestInfo> clientRequests = new ConcurrentHashMap<>();
+        // Track counters per client AND per endpoint bucket to avoid unrelated endpoints sharing the same quota
+        private final ConcurrentHashMap<String, ConcurrentHashMap<String, ClientRequestInfo>> clientRequests = new ConcurrentHashMap<>();
 
         @Override
         protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, 
@@ -56,10 +57,15 @@ public class RateLimitingConfig {
         }
 
         private boolean isRateLimited(String clientId, String endpoint) {
-            ClientRequestInfo info = clientRequests.computeIfAbsent(clientId, k -> new ClientRequestInfo());
-            
+            String bucketKey = getBucketKey(endpoint);
+
+            ConcurrentHashMap<String, ClientRequestInfo> buckets =
+                clientRequests.computeIfAbsent(clientId, k -> new ConcurrentHashMap<>());
+
+            ClientRequestInfo info = buckets.computeIfAbsent(bucketKey, k -> new ClientRequestInfo());
+
             LocalDateTime now = LocalDateTime.now();
-            
+
             // Reset counter if window has passed
             if (now.isAfter(info.windowStart.plusMinutes(1))) {
                 info.requestCount = 0;
@@ -67,7 +73,7 @@ public class RateLimitingConfig {
             }
 
             info.requestCount++;
-            
+
             int limit = getRateLimit(endpoint);
             return info.requestCount > limit;
         }
@@ -85,6 +91,25 @@ public class RateLimitingConfig {
                 return 50; // 50 requests per minute for public endpoints
             } else {
                 return 100; // 100 requests per minute for other endpoints
+            }
+        }
+
+        // Group similar endpoints into buckets so each group has its own counter
+        private String getBucketKey(String endpoint) {
+            if (endpoint.contains("/auth/register")) {
+                return "auth_register";
+            } else if (endpoint.contains("/auth/login")) {
+                return "auth_login";
+            } else if (endpoint.contains("/auth/")) {
+                return "auth";
+            } else if (endpoint.contains("/ai/feedback-analysis")) {
+                return "ai_feedback";
+            } else if (endpoint.contains("/ai/")) {
+                return "ai";
+            } else if (endpoint.contains("/public/")) {
+                return "public";
+            } else {
+                return "other";
             }
         }
 

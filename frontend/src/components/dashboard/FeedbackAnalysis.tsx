@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Crown, MessageSquare, Frown, Meh, Smile, Star, Brain } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -123,6 +123,16 @@ export const FeedbackAnalysis: React.FC = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiData, setAiData] = useState<AIInsights | null>(null);
+  const [aiCooldown, setAiCooldown] = useState<number>(0);
+
+  // Decrement cooldown every second while active
+  useEffect(() => {
+    if (aiCooldown <= 0) return;
+    const id = setInterval(() => {
+      setAiCooldown((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [aiCooldown]);
 
   const buildAIInput = (): string => {
     if (!feedback) return '';
@@ -200,6 +210,11 @@ export const FeedbackAnalysis: React.FC = () => {
       }
     } catch (e: any) {
       setAiError(e?.message || 'Failed to generate AI insights.');
+      // If backend returned 429, api.ts marks error as retryable and includes retryAfterSeconds
+      if ((e as any)?.isRetryable && (e as any)?.retryAfterSeconds) {
+        const secs = Number((e as any).retryAfterSeconds) || 60;
+        setAiCooldown(secs);
+      }
     } finally {
       setAiLoading(false);
     }
@@ -295,11 +310,20 @@ export const FeedbackAnalysis: React.FC = () => {
             </CardTitle>
             <CardDescription>Summarized by AI from recent feedback</CardDescription>
           </div>
-          <Button onClick={generateInsights} disabled={aiLoading || total === 0}>
-            {aiLoading ? 'Analyzing…' : 'Generate AI Insights'}
+          <Button onClick={generateInsights} disabled={aiLoading || aiCooldown > 0 || total === 0}>
+            {aiLoading
+              ? 'Analyzing…'
+              : aiCooldown > 0
+              ? `Please wait ${aiCooldown}s`
+              : 'Generate AI Insights'}
           </Button>
         </CardHeader>
         <CardContent>
+          {aiCooldown > 0 && (
+            <p className="text-xs text-muted-foreground mb-2">
+              You have reached the request limit. Please wait {aiCooldown}s before trying again.
+            </p>
+          )}
           {aiError && (
             <p className="text-sm text-red-600 mb-2">{aiError}</p>
           )}

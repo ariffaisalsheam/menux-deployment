@@ -12,7 +12,7 @@ import { Switch } from '../ui/switch';
 import { useApi, useApiMutation } from '../../hooks/useApi';
 import { LoadingSpinner, LoadingSkeleton } from '../common/LoadingSpinner';
 import { ErrorDisplay } from '../common/ErrorDisplay';
-import { aiConfigAPI } from '../../services/api';
+import { aiConfigAPI, adminAPI } from '../../services/api';
 
 interface AIProvider {
   id: number;
@@ -44,6 +44,7 @@ interface CreateProviderRequest {
   isActive: boolean;
   isPrimary: boolean;
   settings?: string;
+  existingApiKeyProviderId?: number;
 }
 
 const providerTypes = [
@@ -67,13 +68,23 @@ export const AIConfiguration: React.FC = () => {
     model: '',
     isActive: false,
     isPrimary: false,
-    settings: ''
+    settings: '',
+    existingApiKeyProviderId: undefined
   });
   const [usage, setUsage] = useState<UsageMap>({});
+
+  // Per-tool provider/model mapping state
+  type ToolMapping = { [toolKey: string]: { providerId?: number; model?: string } };
+  const [toolMapping, setToolMapping] = useState<ToolMapping>({});
+  const [loadedMapping, setLoadedMapping] = useState<ToolMapping>({});
+  const [mappingSaving, setMappingSaving] = useState(false);
+  const [mappingError, setMappingError] = useState<string | null>(null);
+  const [mappingSuccess, setMappingSuccess] = useState<string | null>(null);
 
   // Fetch AI providers
   const api = useApi<AIProvider[]>(() => aiConfigAPI.getAllProviders());
   const providers: AIProvider[] = api.data ?? [];
+  const matchingProviders = providers.filter(p => p.type === formData.type);
 
   useEffect(() => {
     const load = async () => {
@@ -84,6 +95,93 @@ export const AIConfiguration: React.FC = () => {
     };
     load();
   }, [isCreateDialogOpen]);
+
+  // Load per-tool mapping from platform settings
+  useEffect(() => {
+    const loadMapping = async () => {
+      try {
+        setMappingError(null);
+        const dto = await adminAPI.getPlatformSettingByKey('ai.tool.provider.mapping');
+        const raw = dto?.value ?? dto?.data?.value; // support either shape
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') {
+              setToolMapping(parsed);
+              setLoadedMapping(parsed);
+            }
+          } catch (e) {
+            // Ignore parse errors and keep defaults
+          }
+        }
+      } catch (err: any) {
+        // 404 means not set yet — that's OK
+        if (err?.response?.status !== 404) {
+          setMappingError(err?.message || 'Failed to load per-tool mapping');
+        }
+      }
+    };
+    loadMapping();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const TOOL_CONFIG: { key: string; label: string; help?: string }[] = [
+    { key: 'menu-description', label: 'Menu Description', help: 'Used when generating item descriptions' },
+    { key: 'feedback-analysis', label: 'Feedback Analysis', help: 'Used when analyzing customer feedback' },
+  ];
+
+  // Sentinel value for "use primary provider" (must be non-empty due to Radix Select limitation)
+  const PRIMARY_PROVIDER_VALUE = 'primary';
+
+  const activeProviders = providers.filter(p => p.isActive);
+  const isMappingDirty = JSON.stringify(toolMapping) !== JSON.stringify(loadedMapping);
+
+  const updateToolField = (toolKey: string, field: 'providerId' | 'model', value: number | string | undefined) => {
+    setToolMapping(prev => ({
+      ...prev,
+      [toolKey]: {
+        ...(prev[toolKey] || {}),
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleSaveToolMapping = async () => {
+    setMappingError(null);
+    setMappingSuccess(null);
+    setMappingSaving(true);
+    try {
+      const payload = {
+        value: JSON.stringify(toolMapping),
+        description: 'Per-tool AI provider/model mapping',
+        isPublic: false,
+      };
+      try {
+        await adminAPI.updatePlatformSetting('ai.tool.provider.mapping', payload);
+      } catch (err: any) {
+        // If update fails (e.g., setting doesn't exist), try create
+        if (err?.response?.status === 400 || err?.response?.status === 404) {
+          await adminAPI.createPlatformSetting({
+            key: 'ai.tool.provider.mapping',
+            value: JSON.stringify(toolMapping),
+            description: 'Per-tool AI provider/model mapping',
+            valueType: 'JSON',
+            isPublic: false,
+          });
+        } else {
+          throw err;
+        }
+      }
+      setLoadedMapping(toolMapping);
+      setMappingSuccess('Per-tool mapping saved');
+    } catch (err: any) {
+      setMappingError(err?.message || 'Failed to save mapping');
+    } finally {
+      setMappingSaving(false);
+      // Clear success after a short delay
+      setTimeout(() => setMappingSuccess(null), 2500);
+    }
+  };
 
   // Create provider mutation
   const createMutation = useApiMutation(
@@ -142,7 +240,8 @@ export const AIConfiguration: React.FC = () => {
       model: '',
       isActive: false,
       isPrimary: false,
-      settings: ''
+      settings: '',
+      existingApiKeyProviderId: undefined
     });
   };
 
@@ -151,8 +250,9 @@ export const AIConfiguration: React.FC = () => {
     setTestResult(null);
     setFormError(null);
 
+    // Testing requires a plaintext API key. Reused keys cannot be tested client-side.
     if (!formData.apiKey) {
-      setFormError('API key is required for testing.');
+      setFormError('Enter an API key to test. Reusing an existing key cannot be tested here.');
       setIsTestingConnection(false);
       return;
     }
@@ -187,8 +287,8 @@ export const AIConfiguration: React.FC = () => {
   const handleCreateProvider = async () => {
     setFormError(null);
 
-    if (!formData.type || !formData.apiKey) {
-      setFormError('Provider type and API key are required.');
+    if (!formData.type || (!formData.apiKey && !formData.existingApiKeyProviderId)) {
+      setFormError('Provider type and either an API key or an existing key selection are required.');
       return;
     }
 
@@ -217,8 +317,8 @@ export const AIConfiguration: React.FC = () => {
         setFormError('API Base URL is required for custom OpenAI-compatible providers.');
         return;
       }
-      if (!formData.providerId || /\s/.test(formData.providerId)) {
-        setFormError('Provider ID must be alphanumeric/hyphen and contain no spaces.');
+      if (!formData.providerId || !/^[a-zA-Z0-9-]+$/.test(formData.providerId)) {
+        setFormError('Provider ID must be alphanumeric with optional hyphens (no spaces).');
         return;
       }
     }
@@ -363,10 +463,27 @@ export const AIConfiguration: React.FC = () => {
                   const selected = providerTypes.find(t => t.value === value);
                   setFormData(prev => ({ ...prev, name: selected ? selected.label : 'AI Provider' }));
 
-                  // For Z.AI, enforce model and hide endpoint
+                  // For Z.AI, enforce model and clear endpoint
                   if (value === 'Z_AI_GLM_4_5') {
                     setFormData(prev => ({ ...prev, model: 'glm-4.5-flash', endpoint: '' }));
                   }
+
+                  // Sensible endpoint defaults (only if blank)
+                  if (value === 'OPENROUTER') {
+                    setFormData(prev => ({ ...prev, endpoint: prev.endpoint || 'https://openrouter.ai/api/v1' }));
+                  } else if (value === 'OPENAI') {
+                    setFormData(prev => ({ ...prev, endpoint: prev.endpoint || 'https://api.openai.com/v1' }));
+                  }
+
+                  // Adjust reuse selection to first provider of the same type if toggle is on
+                  const sameTypeProviders = providers.filter(p => p.type === value);
+                  setFormData(prev => ({
+                    ...prev,
+                    existingApiKeyProviderId:
+                      prev.existingApiKeyProviderId !== undefined
+                        ? (sameTypeProviders[0]?.id ?? undefined)
+                        : prev.existingApiKeyProviderId
+                  }));
                 }}
               >
                 <SelectTrigger className="col-span-3">
@@ -385,14 +502,53 @@ export const AIConfiguration: React.FC = () => {
               <Label htmlFor="apiKey" className="text-right">
                 API Key
               </Label>
-              <Input
-                id="apiKey"
-                type="password"
-                value={formData.apiKey}
-                onChange={(e) => setFormData(prev => ({ ...prev, apiKey: e.target.value }))}
-                placeholder="Enter API key"
-                className="col-span-3"
-              />
+              <div className="col-span-3 space-y-2">
+                <Input
+                  id="apiKey"
+                  type="password"
+                  value={formData.apiKey}
+                  onChange={(e) => setFormData(prev => ({ ...prev, apiKey: e.target.value }))}
+                  placeholder={formData.existingApiKeyProviderId ? 'Disabled when reusing an existing key' : 'Enter API key'}
+                  className="w-full"
+                  disabled={!!formData.existingApiKeyProviderId}
+                />
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="reuseKey"
+                    checked={!!formData.existingApiKeyProviderId}
+                    disabled={!formData.type || matchingProviders.length === 0}
+                    onCheckedChange={(checked) => {
+                      setFormError(null);
+                      setFormData(prev => ({
+                        ...prev,
+                        existingApiKeyProviderId: checked ? (matchingProviders[0]?.id ?? undefined) : undefined,
+                        apiKey: checked ? '' : prev.apiKey
+                      }));
+                    }}
+                  />
+                  <Label htmlFor="reuseKey">Reuse API key from existing provider</Label>
+                </div>
+                {formData.existingApiKeyProviderId !== undefined && (
+                  <Select
+                    value={String(formData.existingApiKeyProviderId || '')}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, existingApiKeyProviderId: Number(value) }))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select existing provider to reuse key" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {matchingProviders.map(p => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.name} • {p.maskedApiKey}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Tip: You can create multiple providers (e.g., OpenRouter models) reusing the same stored key.
+                </p>
+              </div>
             </div>
 
             {formData.type === 'OPENAI_COMPATIBLE' || formData.type === 'OPENROUTER' || formData.type === 'OPENAI' ? (
@@ -584,6 +740,77 @@ export const AIConfiguration: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Per-Tool AI Routing */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Per-Tool AI Routing</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Choose a specific active provider and optional model override per tool. Leave provider blank to use the primary provider.
+          </p>
+          {mappingError && (
+            <div className="text-sm text-red-600 bg-red-50 rounded p-2 mt-2">{mappingError}</div>
+          )}
+          {mappingSuccess && (
+            <div className="text-sm text-green-700 bg-green-50 rounded p-2 mt-2">{mappingSuccess}</div>
+          )}
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {TOOL_CONFIG.map(tool => {
+              const cur = toolMapping[tool.key] || {};
+              const providerValue = cur.providerId ? String(cur.providerId) : PRIMARY_PROVIDER_VALUE;
+              const selectedProvider = cur.providerId ? activeProviders.find(p => p.id === cur.providerId) : undefined;
+              return (
+                <div key={tool.key} className="grid gap-3 md:grid-cols-12 items-center">
+                  <div className="md:col-span-3">
+                    <div className="font-medium">{tool.label}</div>
+                    {tool.help && <div className="text-xs text-muted-foreground">{tool.help}</div>}
+                  </div>
+                  <div className="md:col-span-4">
+                    <Label className="text-xs mb-1 inline-block">Provider</Label>
+                    <Select
+                      value={providerValue}
+                      onValueChange={(val) =>
+                        updateToolField(
+                          tool.key,
+                          'providerId',
+                          val === PRIMARY_PROVIDER_VALUE ? undefined : parseInt(val)
+                        )
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Use primary provider" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={PRIMARY_PROVIDER_VALUE}>Use Primary</SelectItem>
+                        {activeProviders.map(p => (
+                          <SelectItem key={p.id} value={String(p.id)}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="md:col-span-4">
+                    <Label className="text-xs mb-1 inline-block">Model Override (optional)</Label>
+                    <Input
+                      placeholder={selectedProvider?.model || 'e.g., gpt-4o-mini or glm-4.5-flash'}
+                      value={cur.model || ''}
+                      onChange={(e) => updateToolField(tool.key, 'model', e.target.value || undefined)}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            <div className="flex justify-end">
+              <Button onClick={handleSaveToolMapping} disabled={!isMappingDirty || mappingSaving}>
+                {mappingSaving ? <LoadingSpinner size="sm" /> : 'Save Mapping'}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Providers List */}
       <div className="grid gap-4">

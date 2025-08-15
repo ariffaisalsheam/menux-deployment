@@ -49,6 +49,13 @@ api.interceptors.response.use(
       } else {
         error.message = 'Service temporarily unavailable. Please try again later.';
       }
+    } else if (error.response?.status === 429) {
+      // Too Many Requests - respect Retry-After header when present
+      const retryAfterHeader = error.response?.headers?.['retry-after'] || error.response?.headers?.['Retry-After'];
+      const retryAfterSeconds = parseInt(retryAfterHeader) || 60;
+      error.message = `Too many requests. Please wait ${retryAfterSeconds}s and try again.`;
+      (error as any).isRetryable = true;
+      (error as any).retryAfterSeconds = retryAfterSeconds;
     } else if (error.response?.status >= 500) {
       error.message = 'Server error occurred. Please contact support if this issue persists.'
     } else if (error.code === 'NETWORK_ERROR' || !error.response) {
@@ -56,8 +63,8 @@ api.interceptors.response.use(
     }
 
     // Add retry information for certain errors
-    if (error.response?.status === 503 || error.code === 'NETWORK_ERROR') {
-      error.isRetryable = true;
+    if (error.response?.status === 503 || error.response?.status === 429 || error.code === 'NETWORK_ERROR') {
+      (error as any).isRetryable = true;
     }
 
     return Promise.reject(error)
@@ -344,18 +351,23 @@ export const adminAPI = {
     return response.data
   },
 
+  getPlatformSettingByKey: async (key: string) => {
+    const response = await api.get(`/admin/platform-config/${encodeURIComponent(key)}`)
+    return response.data
+  },
+
   createPlatformSetting: async (data: any) => {
     const response = await api.post('/admin/platform-config', data)
     return response.data
   },
 
   updatePlatformSetting: async (key: string, data: any) => {
-    const response = await api.put(`/admin/platform-config/${key}`, data)
+    const response = await api.put(`/admin/platform-config/${encodeURIComponent(key)}`, data)
     return response.data
   },
 
   deletePlatformSetting: async (key: string) => {
-    const response = await api.delete(`/admin/platform-config/${key}`)
+    const response = await api.delete(`/admin/platform-config/${encodeURIComponent(key)}`)
     return response.data
   },
 

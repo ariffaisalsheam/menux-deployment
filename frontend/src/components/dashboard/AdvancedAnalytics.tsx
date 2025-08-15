@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Crown, TrendingUp, BarChart3, PieChart, LineChart, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -18,7 +18,9 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Legend
+  Legend,
+  BarChart,
+  Bar
 } from 'recharts';
 
 
@@ -150,7 +152,6 @@ export const AdvancedAnalytics: React.FC = () => {
     try {
       setAiForecastLoading(true);
       setAiForecastError(null);
-      setAiForecastJson(null);
       const input = buildForecastInput();
       if (!input) {
         setAiForecastError('Not enough data to forecast yet.');
@@ -174,6 +175,9 @@ export const AdvancedAnalytics: React.FC = () => {
           try {
             const parsed = JSON.parse(slice);
             setAiForecastJson(parsed);
+            try {
+              localStorage.setItem(`${storagePrefix}forecastJson`, JSON.stringify(parsed));
+            } catch {}
           } catch {
             setAiForecastError('Could not parse forecast JSON.');
           }
@@ -200,9 +204,20 @@ export const AdvancedAnalytics: React.FC = () => {
 
   type RecentActivity = { type: 'ORDER' | 'MENU' | 'FEEDBACK'; title: string; description: string; createdAt: string };
 
+  // Basic analytics for view distribution (hourly)
+  type BasicAnalytics = {
+    viewDistribution?: {
+      hourlyViews?: Array<{ hour: number; views: number }>;
+      hourlyData?: Array<{ hour: number; views: number }>;
+      peakHour: string;
+      peakViews: number;
+    };
+  };
+
   const { data: analytics, loading, error, refetch } = useApi<RestaurantAnalytics>(() => analyticsAPI.getRestaurantAnalytics());
   const { data: feedback } = useApi<FeedbackAnalytics>(() => analyticsAPI.getFeedbackAnalytics());
   const { data: recentActivity } = useApi<RecentActivity[]>(() => analyticsAPI.getRecentActivity());
+  const { data: basic } = useApi<BasicAnalytics>(() => analyticsAPI.getBasicAnalytics());
 
   // AI Strategy Brief (separate from feedback insights)
   const [aiPlanLoading, setAiPlanLoading] = useState(false);
@@ -216,7 +231,37 @@ export const AdvancedAnalytics: React.FC = () => {
   const [aiForecastError, setAiForecastError] = useState<string | null>(null);
   const [aiForecastJson, setAiForecastJson] = useState<any | null>(null);
 
+  // Persistence namespace per restaurant/user
+  const storagePrefix = useMemo(() => {
+    const rid = user?.restaurantId ?? user?.id ?? 'global';
+    return `aa:${rid}:`;
+  }, [user?.restaurantId, user?.id]);
 
+  // Load persisted AI results on mount / user switch
+  useEffect(() => {
+    try {
+      const planDataStr = localStorage.getItem(`${storagePrefix}planData`);
+      if (planDataStr) {
+        const parsed = JSON.parse(planDataStr);
+        setAiPlanData(parsed);
+      }
+      const planTextStr = localStorage.getItem(`${storagePrefix}planText`);
+      if (planTextStr) setAiPlanText(planTextStr);
+      const planAt = localStorage.getItem(`${storagePrefix}planUpdatedAt`);
+      if (planAt) setAiPlanUpdatedAt(planAt);
+    } catch (e) {
+      console.warn('Failed to load persisted strategy', e);
+    }
+    try {
+      const forecastStr = localStorage.getItem(`${storagePrefix}forecastJson`);
+      if (forecastStr) {
+        const parsed = JSON.parse(forecastStr);
+        setAiForecastJson(parsed);
+      }
+    } catch (e) {
+      console.warn('Failed to load persisted forecast', e);
+    }
+  }, [storagePrefix]);
 
   const weeklyData = useMemo(() => {
     return (analytics?.weeklyTrends || []).map((w) => ({
@@ -232,6 +277,125 @@ export const AdvancedAnalytics: React.FC = () => {
       revenue: d.revenue
     }));
   }, [analytics]);
+
+  // Rating distribution (1..5)
+  const ratingDistData = useMemo(() => {
+    const dist = feedback?.ratingDistribution || {};
+    return [1,2,3,4,5].map((r) => ({ rating: `${r}★`, count: Number(dist[r] || 0) }));
+  }, [feedback]);
+
+  // Hourly view distribution (0..23)
+  const hourlyViewData = useMemo(() => {
+    const hours: Array<{ hour: number; views: number }> = (
+      (basic?.viewDistribution as any)?.hourlyViews ||
+      (basic?.viewDistribution as any)?.hourlyData ||
+      []
+    ) as Array<{ hour: number; views: number }>;
+    // Ensure 0..23 present
+    const map = new Map<number, number>();
+    hours.forEach((h) => map.set(h.hour, Number(h.views || 0)));
+    return Array.from({ length: 24 }, (_, h) => ({
+      hour: `${String(h).padStart(2,'0')}:00`,
+      views: map.get(h) || 0
+    }));
+  }, [basic]);
+
+  // Helpers: CSV export and print
+  const toCSV = (headers: string[], rows: (string | number)[][]) => {
+    const esc = (v: any) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const lines = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))];
+    return '\uFEFF' + lines.join('\n');
+  };
+
+  const downloadFile = (filename: string, content: string, mime = 'text/csv;charset=utf-8;') => {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportWeeklyDaily = () => {
+    if (!analytics) return;
+    // Weekly
+    const weekly = toCSV(
+      ['period','revenue','orders','change_pct'],
+      (analytics.weeklyTrends || []).map(w => [w.period, w.revenue, w.orders, w.change])
+    );
+    downloadFile('weekly_trends.csv', weekly);
+    // Daily revenue
+    const daily = toCSV(
+      ['date','revenue'],
+      (analytics.dailyRevenueTrend || []).map(d => [d.date, d.revenue])
+    );
+    downloadFile('daily_revenue_7d.csv', daily);
+  };
+
+  const exportTopItems = () => {
+    if (!analytics) return;
+    const csv = toCSV(
+      ['item','orders','revenue'],
+      (analytics.topSellingItems || []).map(t => [t.name, t.orders, t.revenue])
+    );
+    downloadFile('top_items.csv', csv);
+  };
+
+  const exportFeedbackDist = () => {
+    const csv = toCSV(
+      ['rating','count'],
+      [1,2,3,4,5].map(r => [r, Number(feedback?.ratingDistribution?.[r] || 0)])
+    );
+    downloadFile('feedback_distribution.csv', csv);
+  };
+
+  const exportHourlyViews = () => {
+    const csv = toCSV(
+      ['hour','views'],
+      hourlyViewData.map(h => [h.hour, h.views])
+    );
+    downloadFile('hourly_views.csv', csv);
+  };
+
+  const printSummary = () => {
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const now = new Date().toLocaleString();
+    const kpi = analytics ? `
+      <ul>
+        <li>Revenue: ৳${Number(analytics.revenue.current).toLocaleString()} (${analytics.revenue.change.toFixed(1)}%)</li>
+        <li>Orders: ${Number(analytics.orders.current).toLocaleString()} (${analytics.orders.change.toFixed(1)}%)</li>
+        <li>Customers: ${Number(analytics.customers.current).toLocaleString()} (${analytics.customers.change.toFixed(1)}%)</li>
+        <li>Avg Rating: ${Number(analytics.rating.current).toFixed(2)}</li>
+      </ul>` : '';
+    const html = `<!doctype html><html><head><title>Analytics Summary</title>
+      <style>body{font-family:system-ui,Arial;padding:24px} h1{margin:0 0 8px} h2{margin:16px 0 8px} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ddd;padding:6px;text-align:left} small{color:#555}</style>
+    </head><body>
+      <h1>Advanced Analytics Summary</h1>
+      <small>Generated ${now}</small>
+      <h2>Key Metrics</h2>
+      ${kpi}
+      <h2>Weekly Trends</h2>
+      <table><thead><tr><th>Period</th><th>Revenue</th><th>Orders</th><th>Change %</th></tr></thead><tbody>
+      ${(analytics?.weeklyTrends || []).map(w => `<tr><td>${w.period}</td><td>${w.revenue}</td><td>${w.orders}</td><td>${w.change}</td></tr>`).join('')}
+      </tbody></table>
+      <h2>Top Items</h2>
+      <table><thead><tr><th>Item</th><th>Orders</th><th>Revenue</th></tr></thead><tbody>
+      ${(analytics?.topSellingItems || []).map(t => `<tr><td>${t.name}</td><td>${t.orders}</td><td>${t.revenue}</td></tr>`).join('')}
+      </tbody></table>
+      <h2>Feedback Distribution</h2>
+      <table><thead><tr><th>Rating</th><th>Count</th></tr></thead><tbody>
+      ${[1,2,3,4,5].map(r => `<tr><td>${r}</td><td>${Number(feedback?.ratingDistribution?.[r] || 0)}</td></tr>`).join('')}
+      </tbody></table>
+    </body></html>`;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    w.print();
+  };
 
   // Build structured AI Strategy input using analytics + feedback
   const buildStrategyInput = (): string => {
@@ -273,8 +437,6 @@ export const AdvancedAnalytics: React.FC = () => {
     try {
       setAiPlanLoading(true);
       setAiPlanError(null);
-      setAiPlanData(null);
-      setAiPlanText(null);
       const input = buildStrategyInput();
       if (!input) {
         setAiPlanError('Not enough data to generate a strategy yet.');
@@ -305,14 +467,34 @@ export const AdvancedAnalytics: React.FC = () => {
             if (parsed.summary) {
               setAiPlanText(parsed.summary);
             }
+            const ts = new Date().toLocaleString();
+            setAiPlanUpdatedAt(ts);
+            try {
+              localStorage.setItem(`${storagePrefix}planData`, JSON.stringify(parsed));
+              if (parsed.summary) localStorage.setItem(`${storagePrefix}planText`, parsed.summary);
+              localStorage.setItem(`${storagePrefix}planUpdatedAt`, ts);
+            } catch {}
           } catch {
             setAiPlanText(raw);
+            const ts = new Date().toLocaleString();
+            setAiPlanUpdatedAt(ts);
+            try {
+              localStorage.removeItem(`${storagePrefix}planData`);
+              localStorage.setItem(`${storagePrefix}planText`, raw);
+              localStorage.setItem(`${storagePrefix}planUpdatedAt`, ts);
+            } catch {}
           }
         } else {
           setAiPlanText(raw);
+          const ts = new Date().toLocaleString();
+          setAiPlanUpdatedAt(ts);
+          try {
+            localStorage.removeItem(`${storagePrefix}planData`);
+            localStorage.setItem(`${storagePrefix}planText`, raw);
+            localStorage.setItem(`${storagePrefix}planUpdatedAt`, ts);
+          } catch {}
         }
       }
-      setAiPlanUpdatedAt(new Date().toLocaleString());
     } catch (e: any) {
       setAiPlanError(e?.message || 'Failed to generate strategy.');
     } finally {
@@ -427,6 +609,66 @@ export const AdvancedAnalytics: React.FC = () => {
         </Card>
       </div>
 
+      {/* Customer Behavior Analysis */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Rating Distribution</CardTitle>
+            <CardDescription>Customer satisfaction breakdown</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {ratingDistData?.some(d => d.count > 0) ? (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={ratingDistData} margin={{ left: 12, right: 12 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="rating" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="count" name="Count" fill="#8b5cf6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center text-sm text-muted-foreground">No feedback yet</div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>View Distribution by Hour</CardTitle>
+            <CardDescription>
+              Peak: {basic?.viewDistribution?.peakHour || '—'} ({basic?.viewDistribution?.peakViews ?? 0} views)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {hourlyViewData?.some(d => d.views > 0) ? (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={hourlyViewData} margin={{ left: 12, right: 12 }}>
+                    <defs>
+                      <linearGradient id="viewFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0.05} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="hour" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip />
+                    <Area type="monotone" dataKey="views" stroke="#16a34a" fill="url(#viewFill)" strokeWidth={2} name="Views" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center text-sm text-muted-foreground">No view data yet</div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       {/* AI Strategy Brief + AI Forecast */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -531,19 +773,32 @@ export const AdvancedAnalytics: React.FC = () => {
 
                       return lines.map((line, lineIndex) => {
                         const key = `${index}-${lineIndex}`;
+                        if (!line || !line.trim()) return null;
+
+                        // Determine indentation from original line (before trimming)
+                        const leadingSpaces = (line.match(/^\s*/) || [''])[0].length;
+                        const indentLevel = Math.floor(leadingSpaces / 2); // 2 spaces per level
+                        const marginLeft = Math.min(indentLevel * 12, 48); // px
+
                         const trimmedLine = line.trim();
 
-                        if (!trimmedLine) return null;
+                        // Utility: auto-link URLs
+                        const linkify = (text: string) => {
+                          const splitRegex = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/g;
+                          const isUrl = /^(https?:\/\/[^\s)]+|www\.[^\s)]+)$/i;
+                          const parts = text.split(splitRegex);
+                          return parts.map((part, i) => {
+                            if (isUrl.test(part)) {
+                              const href = part.startsWith('http') ? part : `https://${part}`;
+                              return <a key={`lnk-${i}`} href={href} target="_blank" rel="noreferrer" className="text-blue-600 underline">{part}</a>;
+                            }
+                            return <span key={`txt-${i}`}>{part}</span>;
+                          });
+                        };
 
-                        // Check for headings (various patterns)
-                        const isHeading = trimmedLine.match(/^(#{1,6}\s+|^\*\*.*\*\*$|^[A-Z][A-Z\s]{2,}:?\s*$|^[A-Z][a-z\s]+:$)/);
-                        // Check for bullet points (various patterns)
-                        const isBulletPoint = trimmedLine.match(/^[-•*]\s+|^\s*[-•*]\s+/);
-                        // Check for numbered points
-                        const isNumberedPoint = trimmedLine.match(/^\d+\.\s+/);
-                        // Check for sub-bullets (indented)
-                        const isSubBullet = trimmedLine.match(/^\s{2,}[-•*]\s+/);
-
+                        // Headings
+                        const isHeading = /^(#{1,6}\s+|^\*\*.*\*\*$|^[A-Z][A-Z\s]{2,}:?\s*$|^[A-Z][a-z\s]+:)$/.
+                          test(trimmedLine);
                         if (isHeading) {
                           const cleanHeading = trimmedLine.replace(/^#{1,6}\s+|\*\*|\s*:?\s*$/g, '').trim();
                           return (
@@ -551,39 +806,79 @@ export const AdvancedAnalytics: React.FC = () => {
                               {cleanHeading}
                             </h4>
                           );
-                        } else if (isSubBullet) {
-                          const cleanText = trimmedLine.replace(/^\s*[-•*]\s+/, '').trim();
+                        }
+
+                        // Callouts: Note/Tip/Warning
+                        const calloutMatch = trimmedLine.match(/^(Note|Tip|Warning):\s*(.*)$/i);
+                        if (calloutMatch) {
+                          const type = calloutMatch[1].toLowerCase();
+                          const content = calloutMatch[2];
+                          const color = type === 'warning' ? 'border-yellow-400 bg-yellow-50' : type === 'tip' ? 'border-emerald-400 bg-emerald-50' : 'border-blue-400 bg-blue-50';
+                          const label = type.charAt(0).toUpperCase() + type.slice(1);
                           return (
-                            <div key={key} className="ml-8 mb-1">
-                              <span className="text-blue-400 font-medium mr-2">◦</span>
-                              <span className="text-gray-600 text-sm">{cleanText}</span>
+                            <div key={key} className={`my-2 p-3 border-l-4 ${color} rounded-sm`}
+                                 style={{ marginLeft }}>
+                              <p className="text-xs font-semibold uppercase text-gray-700 mb-1">{label}</p>
+                              <p className="text-gray-700 text-sm">{linkify(content)}</p>
                             </div>
-                          );
-                        } else if (isBulletPoint) {
-                          const cleanText = trimmedLine.replace(/^\s*[-•*]\s+/, '').trim();
-                          return (
-                            <div key={key} className="ml-4 mb-2">
-                              <span className="text-blue-600 font-medium mr-2">•</span>
-                              <span className="text-gray-700">{cleanText}</span>
-                            </div>
-                          );
-                        } else if (isNumberedPoint) {
-                          const cleanText = trimmedLine.replace(/^\d+\.\s+/, '').trim();
-                          const number = trimmedLine.match(/^(\d+)\./)?.[1] || '';
-                          return (
-                            <div key={key} className="ml-4 mb-2">
-                              <span className="text-blue-600 font-medium mr-2">{number}.</span>
-                              <span className="text-gray-700">{cleanText}</span>
-                            </div>
-                          );
-                        } else if (trimmedLine) {
-                          return (
-                            <p key={key} className="text-gray-700 leading-relaxed mb-3">
-                              {trimmedLine}
-                            </p>
                           );
                         }
-                        return null;
+
+                        // Checklist: - [ ] item / - [x] item
+                        const checklistMatch = trimmedLine.match(/^[-*]\s+\[( |x|X)\]\s+(.*)$/);
+                        if (checklistMatch) {
+                          const checked = checklistMatch[1].toLowerCase() === 'x';
+                          const text = checklistMatch[2].trim();
+                          return (
+                            <div key={key} className="flex items-start gap-2 mb-2" style={{ marginLeft }}>
+                              <input type="checkbox" checked={checked} readOnly className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600" />
+                              <span className="text-gray-700">{linkify(text)}</span>
+                            </div>
+                          );
+                        }
+
+                        // Bullets
+                        const isBulletPoint = /^[-•*]\s+/.test(trimmedLine);
+                        if (isBulletPoint) {
+                          const cleanText = trimmedLine.replace(/^[-•*]\s+/, '').trim();
+                          return (
+                            <div key={key} className="mb-2 flex" style={{ marginLeft }}>
+                              <span className="text-blue-600 font-medium mr-2">•</span>
+                              <span className="text-gray-700">{linkify(cleanText)}</span>
+                            </div>
+                          );
+                        }
+
+                        // Numbered list
+                        const numMatch = trimmedLine.match(/^(\d+)\.\s+(.*)$/);
+                        if (numMatch) {
+                          const number = numMatch[1];
+                          const text = numMatch[2];
+                          return (
+                            <div key={key} className="mb-2 flex" style={{ marginLeft }}>
+                              <span className="text-blue-600 font-medium mr-2">{number}.</span>
+                              <span className="text-gray-700">{linkify(text)}</span>
+                            </div>
+                          );
+                        }
+
+                        // Key-Value lines like "Metric: value"
+                        const kv = trimmedLine.match(/^([^:]{2,}):\s*(.+)$/);
+                        if (kv) {
+                          return (
+                            <div key={key} className="mb-2" style={{ marginLeft }}>
+                              <span className="text-gray-500 text-xs uppercase tracking-wide mr-2">{kv[1]}</span>
+                              <span className="inline-block px-2 py-0.5 text-xs rounded bg-white border border-gray-200 text-gray-800">{linkify(kv[2])}</span>
+                            </div>
+                          );
+                        }
+
+                        // Paragraph fallback
+                        return (
+                          <p key={key} className="text-gray-700 leading-relaxed mb-3" style={{ marginLeft }}>
+                            {linkify(trimmedLine)}
+                          </p>
+                        );
                       }).filter(Boolean);
                     }).flat()}
                   </div>
@@ -644,6 +939,23 @@ export const AdvancedAnalytics: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Custom Reports */}
+      <Card>
+        <CardHeader className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2"><BarChart3 className="w-5 h-5 text-purple-600" /> Custom Reports</CardTitle>
+            <CardDescription>Export CSVs or print a summary report</CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={exportWeeklyDaily}>Export Weekly & Daily CSV</Button>
+            <Button variant="secondary" onClick={exportTopItems}>Export Top Items CSV</Button>
+            <Button variant="secondary" onClick={exportFeedbackDist}>Export Feedback CSV</Button>
+            <Button variant="secondary" onClick={exportHourlyViews}>Export Hourly Views CSV</Button>
+            <Button onClick={printSummary}>Print Summary</Button>
+          </div>
+        </CardHeader>
+      </Card>
 
       {/* Recent Activity */}
       <Card>

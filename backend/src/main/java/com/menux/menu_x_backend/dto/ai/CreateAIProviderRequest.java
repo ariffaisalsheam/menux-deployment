@@ -12,7 +12,6 @@ public class CreateAIProviderRequest {
     @NotNull(message = "Provider type is required")
     private AIProviderConfig.ProviderType type;
     
-    @NotBlank(message = "API key is required")
     private String apiKey;
     
     private String endpoint;
@@ -28,6 +27,9 @@ public class CreateAIProviderRequest {
     private Boolean isPrimary = false;
 
     private String settings;
+
+    // Optional: reuse encrypted API key from an existing provider (by id)
+    private Long existingApiKeyProviderId;
 
     // Constructors
     public CreateAIProviderRequest() {}
@@ -68,4 +70,7 @@ public class CreateAIProviderRequest {
 
     public String getSettings() { return settings; }
     public void setSettings(String settings) { this.settings = settings; }
+
+     public Long getExistingApiKeyProviderId() { return existingApiKeyProviderId; }
+     public void setExistingApiKeyProviderId(Long existingApiKeyProviderId) { this.existingApiKeyProviderId = existingApiKeyProviderId; }
 }

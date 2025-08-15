@@ -15,17 +15,24 @@ import org.springframework.web.client.RestTemplate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class AIProviderService {
 
     private static final Logger logger = LoggerFactory.getLogger(AIProviderService.class);
+    private static final String PER_TOOL_MAPPING_KEY = "ai.tool.provider.mapping";
+    private static final String TOOL_MENU_DESCRIPTION = "menu-description";
+    private static final String TOOL_FEEDBACK_ANALYSIS = "feedback-analysis";
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AIProviderConfigRepository aiProviderConfigRepository;
     private final EncryptionService encryptionService;
     private final AIUsageService aiUsageService;
+
+    @Autowired
+    private PlatformSettingService platformSettingService;
 
     @Autowired
     private ExternalApiResilienceService resilienceService;
@@ -44,7 +51,7 @@ public class AIProviderService {
         String prompt = "You are an expert food writer for a restaurant menu. Generate a creative and appealing one-sentence description for the following menu item: " +
                 itemName +
                 ". The description should be brief, enticing, and make the customer want to order it.";
-        return callPrimaryProvider(prompt);
+        return callProviderForTool(TOOL_MENU_DESCRIPTION, prompt);
     }
 
     public String analyzeFeedback(String feedback) {
@@ -59,7 +66,132 @@ public class AIProviderService {
                 "}" +
                 "\nRules: lists 3-5 items max, short phrases, customer-friendly. Keep under 120 words total.\n" +
                 "Input feedback data follows:\n---\n" + feedback + "\n---";
-        return callPrimaryProvider(prompt);
+        return callProviderForTool(TOOL_FEEDBACK_ANALYSIS, prompt);
+    }
+
+    private String callProviderForTool(String toolKey, String userPrompt) {
+        // Validate input
+        if (userPrompt == null || userPrompt.trim().isEmpty()) {
+            throw new AIServiceException("Invalid request data", "INVALID_INPUT");
+        }
+
+        List<AIProviderConfig> actives = aiProviderConfigRepository.findActiveProvidersOrderedByPriority();
+        logger.info("Found {} active AI providers", actives != null ? actives.size() : 0);
+
+        if (actives == null || actives.isEmpty()) {
+            logger.warn("No active AI providers found");
+            throw new AIServiceException("AI service temporarily unavailable", "NO_ACTIVE_PROVIDERS");
+        }
+
+        // Default to primary (first by priority)
+        AIProviderConfig selected = actives.get(0);
+        String overrideModel = null;
+
+        // Try per-tool mapping from platform settings
+        try {
+            Optional<String> mappingStrOpt = platformSettingService != null ? platformSettingService.getSettingValue(PER_TOOL_MAPPING_KEY) : Optional.empty();
+            if (mappingStrOpt.isPresent()) {
+                String mappingStr = mappingStrOpt.get();
+                if (mappingStr != null && !mappingStr.isBlank()) {
+                    JsonNode root = objectMapper.readTree(mappingStr);
+                    JsonNode toolNode = root.get(toolKey);
+                    if (toolNode != null && toolNode.isObject()) {
+                        // providerId may be string or number depending on how saved; handle both
+                        JsonNode pidNode = toolNode.get("providerId");
+                        if (pidNode != null && !pidNode.isNull()) {
+                            Long pid = null;
+                            if (pidNode.isNumber()) pid = pidNode.asLong();
+                            else if (pidNode.isTextual()) {
+                                try { pid = Long.parseLong(pidNode.asText()); } catch (NumberFormatException ignored) {}
+                            }
+                            if (pid != null) {
+                                Optional<AIProviderConfig> mapped = aiProviderConfigRepository.findById(pid);
+                                if (mapped.isPresent() && Boolean.TRUE.equals(mapped.get().getIsActive())) {
+                                    selected = mapped.get();
+                                } else {
+                                    logger.warn("Mapped provider {} for tool '{}' not found or inactive. Falling back to primary.", pid, toolKey);
+                                }
+                            }
+                        }
+                        JsonNode modelNode = toolNode.get("model");
+                        if (modelNode != null && modelNode.isTextual()) {
+                            String m = modelNode.asText();
+                            if (m != null && !m.isBlank()) overrideModel = m;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error reading per-tool AI mapping for key '{}': {}", toolKey, e.getMessage());
+        }
+
+        String serviceName = selected.getType().toString().toLowerCase().replace("_glm_4_5", "");
+        logger.info("Using AI provider for tool '{}': {} (ID: {}, Name: {}), overrideModel={}", toolKey, selected.getType(), selected.getId(), selected.getName(), overrideModel);
+
+        final AIProviderConfig providerRef = selected;
+        final String modelOverrideRef = overrideModel;
+
+        try {
+            return resilienceService.executeWithResilience(
+                serviceName,
+                () -> {
+                    try {
+                        String apiKey = encryptionService.decrypt(providerRef.getEncryptedApiKey());
+                        String result;
+
+                        String effectiveModel = (modelOverrideRef != null && !modelOverrideRef.isBlank()) ? modelOverrideRef : providerRef.getModel();
+                        logger.info("Calling AI provider: {} (ID: {}) with model: {}, endpoint: {}, prompt length: {}",
+                                providerRef.getType(), providerRef.getId(), effectiveModel, providerRef.getEndpoint(), userPrompt.length());
+
+                        switch (providerRef.getType()) {
+                            case GOOGLE_GEMINI:
+                                result = callGoogleGemini(apiKey, effectiveModel, userPrompt);
+                                break;
+                            case OPENAI:
+                                result = callOpenAI(apiKey, effectiveModel, userPrompt, null);
+                                break;
+                            case OPENROUTER:
+                                result = callOpenRouter(apiKey, providerRef.getEndpoint(), effectiveModel, userPrompt);
+                                break;
+                            case OPENAI_COMPATIBLE:
+                                result = callOpenAI(apiKey, effectiveModel, userPrompt, providerRef.getEndpoint());
+                                break;
+                            case Z_AI_GLM_4_5:
+                                result = callZAI(apiKey, providerRef.getEndpoint(), userPrompt,
+                                        (effectiveModel == null || effectiveModel.isBlank()) ? "glm-4.5-flash" : effectiveModel);
+                                break;
+                            default:
+                                throw new AIServiceException("Unsupported AI provider configured", "UNSUPPORTED_PROVIDER");
+                        }
+
+                        if (result == null || result.trim().isEmpty()) {
+                            throw new AIServiceException("AI provider returned empty response", "EMPTY_RESPONSE");
+                        }
+
+                        aiUsageService.recordUse(providerRef.getId());
+                        logger.info("AI provider {} call successful. Response length: {} characters", providerRef.getType(), result.length());
+                        return result;
+
+                    } catch (AIServiceException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        aiUsageService.recordError(providerRef.getId());
+                        logger.error("AI provider {} (ID: {}) call failed with exception: {}", providerRef.getType(), providerRef.getId(), e.getMessage(), e);
+                        String detailedMessage = e.getMessage() != null ? e.getMessage() : "Unknown provider error";
+                        throw new AIServiceException("Provider " + providerRef.getType() + " error: " + detailedMessage, "PROVIDER_ERROR", e);
+                    }
+                },
+                () -> {
+                    logger.warn("Circuit breaker open for AI provider: {}", serviceName);
+                    throw new AIServiceException("AI service temporarily unavailable - circuit breaker is open. Please try again later.", "CIRCUIT_BREAKER_OPEN");
+                }
+            );
+        } catch (AIServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.error("Unexpected error in AI service: {}", e.getMessage(), e);
+            throw new AIServiceException("Failed to generate response, please contact support", "UNEXPECTED_ERROR", e);
+        }
     }
 
     private String callPrimaryProvider(String userPrompt) {

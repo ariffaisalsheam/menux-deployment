@@ -49,11 +49,37 @@ public class AIConfigService {
 
     @Transactional
     public AIProviderConfigDTO createProvider(CreateAIProviderRequest request) {
-        if (repository.existsByName(request.getName())) {
-            throw new RuntimeException("Provider with name '" + request.getName() + "' already exists");
+        // Allow duplicate names; many providers (e.g., OpenRouter) may share the same display name
+
+        // Determine encrypted API key: use provided plaintext if present, otherwise reuse from existing provider id
+        String encryptedApiKey;
+        if (request.getApiKey() != null && !request.getApiKey().isBlank()) {
+            encryptedApiKey = encryptionService.encrypt(request.getApiKey());
+        } else if (request.getExistingApiKeyProviderId() != null) {
+            AIProviderConfig keySource = repository.findById(request.getExistingApiKeyProviderId())
+                    .orElseThrow(() -> new RuntimeException("Key source provider not found: " + request.getExistingApiKeyProviderId()));
+            encryptedApiKey = keySource.getEncryptedApiKey();
+        } else {
+            throw new RuntimeException("API key is required: provide a plaintext apiKey or existingApiKeyProviderId");
         }
 
-        String encryptedApiKey = encryptionService.encrypt(request.getApiKey());
+        // Provider-specific validations to mirror frontend rules and enforce server-side integrity
+        if (request.getType() == AIProviderConfig.ProviderType.OPENROUTER) {
+            if (request.getModel() == null || request.getModel().isBlank()) {
+                throw new RuntimeException("Model is required for OpenRouter providers");
+            }
+        }
+        if (request.getType() == AIProviderConfig.ProviderType.OPENAI_COMPATIBLE) {
+            if (request.getEndpoint() == null || request.getEndpoint().isBlank()) {
+                throw new RuntimeException("API Base URL (endpoint) is required for OpenAI-compatible providers");
+            }
+            if (request.getProviderId() == null || request.getProviderId().isBlank()) {
+                throw new RuntimeException("Provider ID is required for OpenAI-compatible providers");
+            }
+            if (!request.getProviderId().matches("^[a-zA-Z0-9-]+$")) {
+                throw new RuntimeException("Provider ID must be alphanumeric with optional hyphens and no spaces");
+            }
+        }
 
         AIProviderConfig config = new AIProviderConfig();
         config.setName(request.getName());
@@ -63,7 +89,8 @@ public class AIConfigService {
         config.setEndpoint(request.getEndpoint());
         config.setModel(request.getModel());
         config.setModelDisplayName(request.getModelDisplayName());
-        config.setIsActive(request.getIsActive());
+        // Ensure non-null boolean values
+        config.setIsActive(request.getIsActive() != null ? request.getIsActive() : Boolean.FALSE);
         if (config.getProviderId() != null && !config.getProviderId().matches("^[a-zA-Z0-9-]+$")) {
             throw new RuntimeException("Provider ID must be alphanumeric with optional hyphens and no spaces");
         }
@@ -86,9 +113,7 @@ public class AIConfigService {
                 .orElseThrow(() -> new RuntimeException("AI Provider not found with id: " + id));
 
         if (request.getName() != null && !request.getName().equals(config.getName())) {
-            if (repository.existsByNameAndIdNot(request.getName(), id)) {
-                throw new RuntimeException("Another provider with the same name already exists");
-            }
+            // Allow duplicate names; no uniqueness enforcement on name
             config.setName(request.getName());
         }
 

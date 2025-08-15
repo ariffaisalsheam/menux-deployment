@@ -62,12 +62,14 @@ spring:
         connection.provider_disables_autocommit: false
         connection.autocommit: true
         connection.isolation: 2
-        jdbc.time_zone: GMT+6
+        jdbc.time_zone: UTC
         temp.use_jdbc_metadata_defaults: false
   # JSON serialization/deserialization timezone for API responses
   # Override via APP_TIME_ZONE env var (e.g., Asia/Dhaka)
   jackson:
-    time-zone: ${APP_TIME_ZONE:GMT+6}
+    time-zone: ${APP_TIME_ZONE:Asia/Dhaka}
+  logging:
+    timezone: ${APP_TIME_ZONE:Asia/Dhaka}
   flyway:
     enabled: false
 
@@ -76,6 +78,7 @@ jwt:
   expiration: ${JWT_EXPIRATION:86400000}
 
 app:
+  time-zone: ${APP_TIME_ZONE:Asia/Dhaka}
   frontend:
     # Frontend base URL used when generating QR code links
     # Override with APP_FRONTEND_URL env var in deployment
