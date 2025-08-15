@@ -64,6 +64,10 @@ spring:
         connection.isolation: 2
         jdbc.time_zone: UTC
         temp.use_jdbc_metadata_defaults: false
+  # JSON serialization/deserialization timezone for API responses
+  # Override via APP_TIME_ZONE env var (e.g., Asia/Dhaka)
+  jackson:
+    time-zone: ${APP_TIME_ZONE:UTC}
   flyway:
     enabled: false
 
