@@ -65,7 +65,7 @@ spring:
         jdbc.time_zone: UTC
         temp.use_jdbc_metadata_defaults: false
   flyway:
-    enabled: true
+    enabled: false
 
 jwt:
   secret: ${JWT_SECRET:mySecretKey123456789012345678901234567890}
