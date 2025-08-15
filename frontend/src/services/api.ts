@@ -17,6 +17,12 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    // If sending FormData, let the browser set the multipart boundary automatically
+    if (config.data instanceof FormData) {
+      if (config.headers && 'Content-Type' in config.headers) {
+        delete (config.headers as any)['Content-Type']
+      }
+    }
     return config
   },
   (error) => {
@@ -344,8 +350,26 @@ export const aiConfigAPI = {
   }
 }
 
-// Platform Settings API (Admin only)
-export const adminAPI = {
+// Media API
+export const mediaAPI = {
+  uploadImage: async (file: File, restaurantId?: number) => {
+    const form = new FormData()
+    form.append('file', file)
+    if (restaurantId !== undefined) form.append('restaurantId', String(restaurantId))
+    const response = await api.post('/media/upload', form)
+    return response.data as { url?: string; path: string; proxyUrl?: string; signedUrl?: string }
+  }
+}
+
+// Helper to build media proxy URL for displaying images via backend
+export const mediaProxyUrl = (pathOrUrl?: string) => {
+  if (!pathOrUrl) return ''
+  const base = (API_BASE_URL || '').replace(/\/$/, '') // ensure no trailing slash
+  return `${base}/media/stream?path=${encodeURIComponent(pathOrUrl)}`
+}
+
+// Platform Config API (Admin only)
+export const platformConfigAPI = {
   getPlatformSettings: async () => {
     const response = await api.get('/admin/platform-config')
     return response.data

@@ -8,7 +8,7 @@ import { Input } from '../components/ui/input';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorDisplay } from '../components/common/ErrorDisplay';
 import { FeedbackDialog } from '../components/public/FeedbackDialog';
-import { publicMenuAPI } from '../services/api';
+import { publicMenuAPI, mediaProxyUrl } from '../services/api';
 
 interface MenuItem {
   id: number;
@@ -805,7 +805,9 @@ const MenuItemCard: React.FC<{
       {item.imageUrl && (
         <div className="aspect-video bg-gray-200">
           <img 
-            src={item.imageUrl} 
+            src={item.imageUrl.startsWith('/api/media/stream') || item.imageUrl.startsWith('http')
+              ? item.imageUrl
+              : mediaProxyUrl(item.imageUrl)} 
             alt={item.name}
             className="w-full h-full object-cover"
           />

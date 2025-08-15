@@ -12,6 +12,7 @@ import com.menux.menu_x_backend.repository.MenuItemRepository;
 import com.menux.menu_x_backend.repository.RestaurantRepository;
 import com.menux.menu_x_backend.repository.UserRepository;
 import com.menux.menu_x_backend.service.RestaurantService;
+import com.menux.menu_x_backend.service.MediaStorageService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -41,6 +42,9 @@ public class MenuController {
 
     @Autowired
     private RestaurantService restaurantService;
+
+    @Autowired
+    private MediaStorageService mediaStorageService;
 
     // Public endpoint for viewing menu items (for QR code access)
     @GetMapping("/restaurant/{restaurantId}/items")
@@ -117,7 +121,8 @@ public class MenuController {
         menuItem.setIsAvailable(request.getIsAvailable());
         menuItem.setIsVegetarian(request.getIsVegetarian());
         menuItem.setIsSpicy(request.getIsSpicy());
-        menuItem.setImageUrl(request.getImageUrl());
+        // store only storage path (no public URL)
+        menuItem.setImageUrl(mediaStorageService.normalizeToPath(request.getImageUrl()));
         menuItem.setAiDescription(request.getAiDescription());
         // place new item at end of list
         int nextOrder = (int) menuItemRepository.countByRestaurantId(restaurantId) + 1;
@@ -166,7 +171,16 @@ public class MenuController {
             }
         }
         if (request.getImageUrl() != null) {
-            menuItem.setImageUrl(request.getImageUrl());
+            String newPath = mediaStorageService.normalizeToPath(request.getImageUrl());
+            String oldPath = menuItem.getImageUrl();
+            // delete old image if changed
+            if (oldPath != null) {
+                String oldNorm = mediaStorageService.normalizeToPath(oldPath);
+                if (!oldNorm.equals(newPath)) {
+                    try { mediaStorageService.deleteObject(oldNorm); } catch (RuntimeException ignore) {}
+                }
+            }
+            menuItem.setImageUrl(newPath);
         }
         if (request.getIsAvailable() != null) {
             menuItem.setIsAvailable(request.getIsAvailable());
@@ -205,6 +219,10 @@ public class MenuController {
             return ResponseEntity.status(403).build();
         }
         
+        // delete associated image if present
+        if (menuItem.getImageUrl() != null) {
+            try { mediaStorageService.deleteObject(menuItem.getImageUrl()); } catch (RuntimeException ignore) {}
+        }
         menuItemRepository.delete(menuItem);
         return ResponseEntity.noContent().build();
     }

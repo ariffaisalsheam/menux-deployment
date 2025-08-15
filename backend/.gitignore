@@ -33,4 +33,5 @@ build/
 .vscode/
 
 # Ignore Supabase credentials
+src/main/resources/application-local.yml
 Supabase & Gemini API details.txt

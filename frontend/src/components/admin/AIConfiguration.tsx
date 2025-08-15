@@ -12,7 +12,7 @@ import { Switch } from '../ui/switch';
 import { useApi, useApiMutation } from '../../hooks/useApi';
 import { LoadingSpinner, LoadingSkeleton } from '../common/LoadingSpinner';
 import { ErrorDisplay } from '../common/ErrorDisplay';
-import { aiConfigAPI, adminAPI } from '../../services/api';
+import { aiConfigAPI, platformConfigAPI } from '../../services/api';
 
 interface AIProvider {
   id: number;
@@ -101,7 +101,7 @@ export const AIConfiguration: React.FC = () => {
     const loadMapping = async () => {
       try {
         setMappingError(null);
-        const dto = await adminAPI.getPlatformSettingByKey('ai.tool.provider.mapping');
+        const dto = await platformConfigAPI.getPlatformSettingByKey('ai.tool.provider.mapping');
         const raw = dto?.value ?? dto?.data?.value; // support either shape
         if (raw) {
           try {
@@ -157,11 +157,11 @@ export const AIConfiguration: React.FC = () => {
         isPublic: false,
       };
       try {
-        await adminAPI.updatePlatformSetting('ai.tool.provider.mapping', payload);
+        await platformConfigAPI.updatePlatformSetting('ai.tool.provider.mapping', payload);
       } catch (err: any) {
         // If update fails (e.g., setting doesn't exist), try create
         if (err?.response?.status === 400 || err?.response?.status === 404) {
-          await adminAPI.createPlatformSetting({
+          await platformConfigAPI.createPlatformSetting({
             key: 'ai.tool.provider.mapping',
             value: JSON.stringify(toolMapping),
             description: 'Per-tool AI provider/model mapping',

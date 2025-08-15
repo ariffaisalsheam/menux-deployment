@@ -32,6 +32,11 @@ This document lists all required environment variables for the Menu.X applicatio
 - `CORS_ALLOWED_ORIGINS`: Comma-separated list of allowed CORS origins
 - `APP_FRONTEND_URL`: Frontend base URL for QR code generation
 
+### Supabase Storage (Image Uploads) - REQUIRED for media upload
+- `SUPABASE_URL`: Your Supabase project URL (e.g., https://xyzcompany.supabase.co)
+- `SUPABASE_SERVICE_KEY`: Supabase service role key (server-side only, never expose to frontend)
+- `SUPABASE_STORAGE_BUCKET`: Storage bucket name (default: menu-images)
+
 ## AI Provider Configuration
 AI provider keys are NOT set via environment variables. They are configured by Super Admin users through the web interface and stored encrypted in the database for security.
 
@@ -51,6 +56,11 @@ SUPABASE_DATABASE_PASSWORD=your-password
 PORT=8080
 CORS_ALLOWED_ORIGINS=http://localhost:5173
 APP_FRONTEND_URL=http://localhost:5173
+
+# Supabase Storage (required for image uploads)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-service-role-key
+SUPABASE_STORAGE_BUCKET=menu-images
 ```
 
 ## Security Best Practices

@@ -22,6 +22,6 @@ echo 🚀 Starting backend on port 8080...
 echo.
 
 cd backend
-mvn spring-boot:run
+mvnw.cmd spring-boot:run
 
 pause

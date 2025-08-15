@@ -92,6 +92,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Group all public API endpoints
                         .requestMatchers("/api/auth/**", "/api/public/**", "/api/menu/public/**", "/api/feedback/public/**").permitAll()
+                        // Allow unauthenticated image streaming via backend proxy
+                        .requestMatchers(HttpMethod.GET, "/api/media/stream").permitAll()
                         // Secure all other endpoints
                         .anyRequest().authenticated()
                 )

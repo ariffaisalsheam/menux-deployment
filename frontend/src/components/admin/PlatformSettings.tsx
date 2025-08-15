@@ -9,7 +9,7 @@ import { Switch } from '../ui/switch';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ErrorDisplay } from '../common/ErrorDisplay';
 import { useApi } from '../../hooks/useApi';
-import { adminAPI } from '../../services/api';
+import { platformConfigAPI } from '../../services/api';
 import { Settings, Plus, Edit, Trash2, Save, X, RefreshCw } from 'lucide-react';
 
 interface PlatformSetting {
@@ -38,7 +38,7 @@ export const PlatformSettings: React.FC = () => {
     loading,
     error,
     refetch
-  } = useApi<PlatformSetting[]>(() => adminAPI.getPlatformSettings());
+  } = useApi<PlatformSetting[]>(() => platformConfigAPI.getPlatformSettings());
 
   const handleEdit = (setting: PlatformSetting) => {
     setEditingId(setting.id);
@@ -53,7 +53,7 @@ export const PlatformSettings: React.FC = () => {
     if (!editingId) return;
     
     try {
-      await adminAPI.updatePlatformSetting(editingId.toString(), editForm);
+      await platformConfigAPI.updatePlatformSetting(editingId.toString(), editForm);
       setEditingId(null);
       setEditForm({});
       refetch();
@@ -69,7 +69,7 @@ export const PlatformSettings: React.FC = () => {
 
   const handleCreate = async () => {
     try {
-      await adminAPI.createPlatformSetting(createForm);
+      await platformConfigAPI.createPlatformSetting(createForm);
       setShowCreateForm(false);
       setCreateForm({ valueType: 'STRING', isPublic: false });
       refetch();
@@ -82,7 +82,7 @@ export const PlatformSettings: React.FC = () => {
     if (!confirm('Are you sure you want to delete this setting?')) return;
     
     try {
-      await adminAPI.deletePlatformSetting(id.toString());
+      await platformConfigAPI.deletePlatformSetting(id.toString());
       refetch();
     } catch (error) {
       console.error('Failed to delete setting:', error);
@@ -91,7 +91,7 @@ export const PlatformSettings: React.FC = () => {
 
   const handleInitializeDefaults = async () => {
     try {
-      await adminAPI.initializePlatformSettings();
+      await platformConfigAPI.initializePlatformSettings();
       refetch();
     } catch (error) {
       console.error('Failed to initialize default settings:', error);

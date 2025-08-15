@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Plus, Edit, Trash2, Search, Filter, Crown, ArrowUp, ArrowDown, LayoutGrid, Table as TableIcon, CheckSquare, Square } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -9,7 +9,7 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useAuth } from '../../contexts/AuthContext';
-import { menuAPI, aiAPI } from '../../services/api';
+import { menuAPI, aiAPI, mediaAPI, mediaProxyUrl } from '../../services/api';
 import { useApi, useApiMutation } from '../../hooks/useApi';
 import { LoadingSkeleton } from '../common/LoadingSpinner';
 import { LoadingSpinner } from '../common/LoadingSpinner';
@@ -47,6 +47,9 @@ export const MenuManagement: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<MenuItemFormData>({
     name: '',
@@ -121,6 +124,46 @@ export const MenuManagement: React.FC = () => {
       isAvailable: true,
       imageUrl: ''
     });
+  };
+
+  // Image upload handling
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImageError('');
+    // Frontend validation to match backend: <= 1MB, types: jpeg/png/webp
+    const MAX_IMAGE_BYTES = 1024 * 1024; // 1MB
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageError('Image too large. Max size is 1MB.');
+      return;
+    }
+    if (!allowedTypes.includes(file.type)) {
+      setImageError('Unsupported image type. Use JPG, PNG, or WebP.');
+      return;
+    }
+
+    try {
+      setImageUploading(true);
+      const restaurantId = (user as any)?.restaurantId as number | undefined;
+      const resp = await mediaAPI.uploadImage(file, restaurantId);
+      if (resp?.path) {
+        // Store only the storage path; use proxy URL for display
+        setFormData(prev => ({ ...prev, imageUrl: resp.path }));
+      } else {
+        setImageError('Upload failed. No URL returned.');
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Failed to upload image';
+      setImageError(String(msg));
+    } finally {
+      setImageUploading(false);
+      // reset input value so same file can be picked again if needed
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   const handleAddItem = () => {
@@ -624,6 +667,38 @@ export const MenuManagement: React.FC = () => {
                   <SelectItem value="BEVERAGE">Beverages</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            {/* Image upload */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="imageFile" className="text-right">
+                Upload Image
+              </Label>
+              <div className="col-span-3">
+                <Input
+                  id="imageFile"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleFileChange}
+                  ref={fileInputRef}
+                  disabled={imageUploading}
+                />
+                {imageUploading && (
+                  <p className="text-xs text-muted-foreground mt-1">Uploading…</p>
+                )}
+                {imageError && <p className="text-xs text-red-600 mt-1">{imageError}</p>}
+                {formData.imageUrl && (
+                  <div className="mt-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={formData.imageUrl.startsWith('/api/media/stream') || formData.imageUrl.startsWith('http')
+                        ? formData.imageUrl
+                        : mediaProxyUrl(formData.imageUrl)}
+                      alt="Menu item preview"
+                      className="h-24 w-24 object-cover rounded border"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="imageUrl" className="text-right">
