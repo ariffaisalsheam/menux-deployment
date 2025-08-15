@@ -91,8 +91,15 @@ export const DashboardOverview: React.FC = () => {
   type RecentActivity = { type: 'ORDER' | 'MENU' | 'FEEDBACK'; title: string; description: string; createdAt: string };
   const { data: recentActivity } = useApi<RecentActivity[]>(() => analyticsAPI.getRecentActivity());
 
+  // Parse API datetime strings:
+  // - If timezone/offset is missing, assume UTC to avoid local misinterpretation
+  const parseApiDate = (s: string) => {
+    const hasTZ = /[zZ]|[+\-]\d{2}:?\d{2}$/.test(s);
+    return new Date(hasTZ ? s : `${s}Z`);
+  };
+
   const timeAgo = (iso: string) => {
-    const d = new Date(iso);
+    const d = parseApiDate(iso);
     const diff = Math.max(0, Date.now() - d.getTime());
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'just now';
