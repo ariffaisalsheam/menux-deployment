@@ -63,9 +63,7 @@ spring:
         connection.autocommit: true
         connection.isolation: 2
         jdbc.time_zone: UTC
-        boot.allow_jdbc_metadata_access: false
-        temp:
-          use_jdbc_metadata_defaults: false
+        boot.allow_jdbc_metadata_access: true
   # JSON serialization/deserialization timezone for API responses
   # Override via APP_TIME_ZONE env var (e.g., Asia/Dhaka)
   jackson:

@@ -37,6 +37,10 @@ SPRING_PROFILES_ACTIVE=supabase
 CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 APP_FRONTEND_URL=https://yourdomain.com
 
+# Flyway (optional; use only if checksum mismatch appears)
+# Set true for a single deploy to run flyway.repair() before migrate, then revert to false
+APP_FLYWAY_REPAIR_ON_START=false
+
 # Optional
 JWT_EXPIRATION=86400000
 APP_TIME_ZONE=Asia/Dhaka
@@ -53,6 +57,12 @@ VITE_APP_VERSION=1.0.0
 - Provision PostgreSQL database
 - Ensure database user has CREATE, ALTER, INSERT, UPDATE, DELETE permissions
 - Flyway will handle schema creation automatically
+
+#### One-time Flyway Repair (only if needed)
+- If deploy logs show a Flyway checksum mismatch for a previously applied migration:
+  1) Temporarily set `APP_FLYWAY_REPAIR_ON_START=true` in backend env.
+  2) Redeploy once; logs should show "Flyway repair..." followed by successful validate/migrate.
+  3) Immediately set `APP_FLYWAY_REPAIR_ON_START=false` and redeploy to enforce strict validation.
 
 ### 3. SSL Certificates
 - Obtain SSL certificates for your domain
@@ -255,6 +265,11 @@ jobs:
 - Verify CORS_ALLOWED_ORIGINS includes your frontend domain
 - Check protocol (http vs https)
 - Ensure no trailing slashes
+
+#### 3. Hibernate cannot determine Dialect / JDBC metadata
+- Symptom in logs: "Unable to determine Dialect without JDBC metadata..."
+- Ensure datasource is reachable and `spring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=true`.
+- In `backend/src/main/resources/application.yml` (supabase profile) this is already enabled.
 
 #### 3. AI Service Issues
 - Verify AI provider configuration in admin panel

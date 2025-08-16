@@ -33,6 +33,8 @@ This document lists all required environment variables for the Menu.X applicatio
 - `APP_FRONTEND_URL`: Frontend base URL for QR code generation
 - `APP_TIME_ZONE`: Application time zone (default: Asia/Dhaka)
 
+- `APP_FLYWAY_REPAIR_ON_START` (optional): Defaults to `false`. Set to `true` only for a one-time startup to run `flyway.repair()` before migrate (e.g., to fix a checksum mismatch), then revert to `false`.
+
 ### Supabase Storage (Image Uploads) - REQUIRED for media upload
 - `SUPABASE_URL`: Your Supabase project URL (e.g., https://xyzcompany.supabase.co)
 - `SUPABASE_SERVICE_KEY`: Supabase service role key (server-side only, never expose to frontend)

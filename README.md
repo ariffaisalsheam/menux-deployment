@@ -84,6 +84,10 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173
 PORT=8080
 SPRING_PROFILES_ACTIVE=supabase
 APP_FRONTEND_URL=http://localhost:5173
+
+# Flyway (optional; one-time if checksum mismatch appears)
+# Set true for a single run to repair, then revert to false
+APP_FLYWAY_REPAIR_ON_START=false
 ```
 
 #### Frontend Environment Variables
@@ -188,16 +192,19 @@ Ensure all environment variables are properly set in production:
 JWT_SECRET=<strong-production-secret>
 APP_ENCRYPTION_SECRET_KEY=<strong-encryption-key>
 
-# Database (REQUIRED)
-DATABASE_URL=<production-database-url>
-DATABASE_USERNAME=<production-username>
-DATABASE_PASSWORD=<production-password>
+# Database (Supabase profile)
+SUPABASE_DATABASE_URL=jdbc:postgresql://your-supabase-host:6543/postgres?sslmode=require
+SUPABASE_DATABASE_USERNAME=<production-username>
+SUPABASE_DATABASE_PASSWORD=<production-password>
 
 # Application
 PORT=8080
-SPRING_PROFILES_ACTIVE=prod
+SPRING_PROFILES_ACTIVE=supabase
 CORS_ALLOWED_ORIGINS=https://yourdomain.com
 APP_FRONTEND_URL=https://yourdomain.com
+
+# Flyway (optional; one-time if checksum mismatch appears)
+APP_FLYWAY_REPAIR_ON_START=false
 ```
 
 ### Build for Production
