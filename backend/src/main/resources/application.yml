@@ -11,9 +11,9 @@ spring:
     activate:
       on-profile: supabase
   datasource:
-    url: ${SUPABASE_DATABASE_URL:jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require&preferQueryMode=simple}
-    username: ${SUPABASE_DATABASE_USERNAME:postgres.fxxbzrxcakzbbdvxocsu}
-    password: ${SUPABASE_DATABASE_PASSWORD:007$he@M}
+    url: ${SUPABASE_DATABASE_URL}
+    username: ${SUPABASE_DATABASE_USERNAME}
+    password: ${SUPABASE_DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     # HikariCP connection pool configuration for Supabase
     hikari:
@@ -46,7 +46,7 @@ spring:
         loginTimeout: 10
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
@@ -71,7 +71,9 @@ spring:
   logging:
     timezone: ${APP_TIME_ZONE:Asia/Dhaka}
   flyway:
-    enabled: false
+    enabled: true
+    locations: classpath:db/migration
+    default-schema: public
 
   servlet:
     multipart:
@@ -79,7 +81,7 @@ spring:
       max-request-size: 2MB
 
 jwt:
-  secret: ${JWT_SECRET:mySecretKey123456789012345678901234567890}
+  secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:86400000}
 
 app:
@@ -90,6 +92,6 @@ app:
     url: ${APP_FRONTEND_URL:http://localhost:5173}
   media:
     supabase:
-      url: ${SUPABASE_URL:https://fxxbzrxcakzbbdvxocsu.supabase.co}
-      service-key: ${SUPABASE_SERVICE_KEY:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4eGJ6cnhjYWt6YmJkdnhvY3N1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDg0MDc0MiwiZXhwIjoyMDcwNDE2NzQyfQ.D3T6cY6Qp6Uqb2jlsFyAVsRs1A8UGfyTt63PkvZqmho}
+      url: ${SUPABASE_URL}
+      service-key: ${SUPABASE_SERVICE_KEY}
       bucket: ${SUPABASE_STORAGE_BUCKET:menu-images}
