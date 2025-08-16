@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
+import jakarta.annotation.PostConstruct;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -38,6 +39,33 @@ public class MediaStorageService {
 
     public MediaStorageService(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
+    }
+
+    @PostConstruct
+    private void sanitizeConfig() {
+        // Remove any accidental whitespace/newlines from env-injected values that can break HTTP headers
+        if (supabaseServiceKey != null) {
+            supabaseServiceKey = supabaseServiceKey.trim();
+            // If someone pasted with a 'Bearer ' prefix, drop it (setBearerAuth will add it)
+            String lower = supabaseServiceKey.toLowerCase();
+            if (lower.startsWith("bearer ")) {
+                supabaseServiceKey = supabaseServiceKey.substring(7);
+            }
+            // Remove control characters/newlines/tabs that break header values
+            supabaseServiceKey = supabaseServiceKey.replaceAll("[\\r\\n\\t]", "");
+            // Strip surrounding quotes if the value was pasted with quotes
+            if ((supabaseServiceKey.startsWith("\"") && supabaseServiceKey.endsWith("\""))
+                    || (supabaseServiceKey.startsWith("'") && supabaseServiceKey.endsWith("'"))) {
+                supabaseServiceKey = supabaseServiceKey.substring(1, supabaseServiceKey.length() - 1).trim();
+            }
+        }
+        if (supabaseUrl != null) {
+            supabaseUrl = supabaseUrl.trim();
+            // Ensure no trailing slash to avoid double slashes in constructed URLs
+            while (supabaseUrl.endsWith("/")) {
+                supabaseUrl = supabaseUrl.substring(0, supabaseUrl.length() - 1);
+            }
+        }
     }
 
     public UploadResponse uploadMenuImage(MultipartFile file, String restaurantId) {
