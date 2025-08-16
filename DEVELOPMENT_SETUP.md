@@ -92,6 +92,7 @@ SPRING_PROFILES_ACTIVE=dev
 CORS_ALLOWED_ORIGINS=http://localhost:5173
 PORT=8080
 APP_FRONTEND_URL=http://localhost:5173
+APP_TIME_ZONE=Asia/Dhaka
 ```
 
 #### Frontend (.env.local)

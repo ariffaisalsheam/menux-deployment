@@ -26,14 +26,20 @@ DATABASE_URL=jdbc:postgresql://host:port/database?sslmode=require
 DATABASE_USERNAME=<username>
 DATABASE_PASSWORD=<password>
 
+# OR (if using the 'supabase' profile)
+SUPABASE_DATABASE_URL=jdbc:postgresql://host:port/postgres?sslmode=require
+SUPABASE_DATABASE_USERNAME=<username>
+SUPABASE_DATABASE_PASSWORD=<password>
+
 # Application Configuration
 PORT=8080
-SPRING_PROFILES_ACTIVE=prod
+SPRING_PROFILES_ACTIVE=supabase
 CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 APP_FRONTEND_URL=https://yourdomain.com
 
 # Optional
 JWT_EXPIRATION=86400000
+APP_TIME_ZONE=Asia/Dhaka
 ```
 
 #### Frontend Environment Variables
@@ -102,10 +108,10 @@ services:
     environment:
       - JWT_SECRET=${JWT_SECRET}
       - APP_ENCRYPTION_SECRET_KEY=${APP_ENCRYPTION_SECRET_KEY}
-      - DATABASE_URL=${DATABASE_URL}
-      - DATABASE_USERNAME=${DATABASE_USERNAME}
-      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
-      - SPRING_PROFILES_ACTIVE=prod
+      - SUPABASE_DATABASE_URL=${SUPABASE_DATABASE_URL}
+      - SUPABASE_DATABASE_USERNAME=${SUPABASE_DATABASE_USERNAME}
+      - SUPABASE_DATABASE_PASSWORD=${SUPABASE_DATABASE_PASSWORD}
+      - SPRING_PROFILES_ACTIVE=supabase
     depends_on:
       - db
 
