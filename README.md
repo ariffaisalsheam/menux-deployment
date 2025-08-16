@@ -44,9 +44,9 @@ Menu.X is a comprehensive digital restaurant management platform designed specif
 - **Lucide React** - Beautiful icons
 
 ### AI Integration
-- **Google Gemini API** - AI-powered menu descriptions and feedback analysis
-- **Multiple Provider Support** - OpenAI, OpenRouter, and other AI providers
-- **Encrypted Storage** - Secure API key management
+- **Flexible AI Provider Support** - Connect to various AI services like OpenAI, Google Gemini, OpenRouter, and other compatible providers.
+- **Centralized Configuration** - Super Admins can add, manage, and prioritize AI providers from the dashboard.
+- **Encrypted Storage** - All API keys are securely encrypted in the database.
 
 ## 📋 Prerequisites
 
@@ -237,4 +237,4 @@ For support and questions:
 - Built with Spring Boot and React
 - UI components by shadcn/ui
 - Icons by Lucide
-- AI powered by Google Gemini and other providers
+- AI features powered by various large language models

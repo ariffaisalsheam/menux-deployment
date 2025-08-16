@@ -14,6 +14,9 @@ Supabase & Gemini API details.txt
 .DS_Store
 Thumbs.db
 
+# Private docs
+.private/  # Keep deployment notes out of version control
+
 # Logs
 *.log
 logs/
