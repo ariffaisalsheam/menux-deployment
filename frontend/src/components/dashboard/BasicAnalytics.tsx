@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { TrendingUp, TrendingDown, Eye, QrCode, Users, Menu, Crown, Clock, Activity } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -48,12 +48,25 @@ export const BasicAnalytics: React.FC = () => {
   const isPro = user?.subscriptionPlan === 'PRO';
 
   // Fetch basic analytics data for non-Pro users
+  const today = new Date().toISOString().split('T')[0];
+  const nowLabel = new Date().toLocaleString();
   const {
     data: analytics,
     loading,
     error,
     refetch
-  } = useApi<BasicAnalyticsData>(() => analyticsAPI.getBasicAnalytics());
+  } = useApi<BasicAnalyticsData>(() => analyticsAPI.getBasicAnalytics(undefined, today));
+
+  // Prepare hourly distribution data for the chart (fill 0-23 hours)
+  const hourlyBarData = useMemo(() => {
+    const base = Array.from({ length: 24 }, (_, h) => ({ hour: h, views: 0 }));
+    const byHour = new Map<number, number>();
+    const hourly = analytics?.viewDistribution?.hourlyData ?? [];
+    hourly.forEach((d) => {
+      byHour.set(d.hour, Number(d.views) || 0);
+    });
+    return base.map((b) => ({ hour: `${b.hour}:00`, views: byHour.get(b.hour) ?? 0 }));
+  }, [analytics?.viewDistribution]);
 
   if (loading) {
     return (
@@ -290,30 +303,27 @@ export const BasicAnalytics: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* View Distribution by Hour */}
+      {/* View Distribution by Hour (Today) */}
       <Card>
         <CardHeader>
-          <CardTitle>View Distribution</CardTitle>
+          <CardTitle>View Distribution by Hour</CardTitle>
           <CardDescription>
-            When customers view your menu throughout the day
+            When customers view your menu throughout the day — Today ({today}) • Now: {nowLabel}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium">Peak viewing time: {analytics.viewDistribution.peakHour}</span>
-              <Badge variant="secondary">{analytics.viewDistribution.peakViews} views</Badge>
+              <span className="text-sm font-medium">Peak viewing time: {analytics.viewDistribution?.peakHour || '—'}</span>
+              <Badge variant="secondary">{analytics.viewDistribution?.peakViews ?? 0} views</Badge>
             </div>
 
-            {analytics.viewDistribution.hourlyData && analytics.viewDistribution.hourlyData.length > 0 ? (
+            {hourlyBarData.some(d => d.views > 0) ? (
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={analytics.viewDistribution.hourlyData.map(d => ({
-                      hour: `${d.hour}:00`,
-                      views: d.views
-                    }))}
+                    data={hourlyBarData}
                     margin={{ left: 12, right: 12 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />

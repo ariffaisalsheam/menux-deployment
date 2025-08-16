@@ -67,6 +67,18 @@ public interface MenuViewRepository extends JpaRepository<MenuView, Long> {
            "ORDER BY hour")
     List<Object[]> findHourlyViewDistribution(@Param("restaurantId") Long restaurantId, @Param("start") LocalDateTime start);
     
+    // Get hourly view distribution within a specific date window (e.g., a single day)
+    @Query("SELECT HOUR(mv.createdAt) as hour, COUNT(mv) as viewCount " +
+           "FROM MenuView mv " +
+           "WHERE mv.restaurantId = :restaurantId " +
+           "AND mv.createdAt BETWEEN :start AND :end " +
+           "GROUP BY HOUR(mv.createdAt) " +
+           "ORDER BY hour")
+    List<Object[]> findHourlyViewDistributionBetween(
+        @Param("restaurantId") Long restaurantId,
+        @Param("start") LocalDateTime start,
+        @Param("end") LocalDateTime end);
+    
     // Count unique visitors (by IP) in date range
     @Query("SELECT COUNT(DISTINCT mv.visitorIp) " +
            "FROM MenuView mv " +

@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Crown, TrendingUp, BarChart3, PieChart, LineChart, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
+
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
 import { useApi } from '../../hooks/useApi';
@@ -217,7 +218,8 @@ export const AdvancedAnalytics: React.FC = () => {
   const { data: analytics, loading, error, refetch } = useApi<RestaurantAnalytics>(() => analyticsAPI.getRestaurantAnalytics());
   const { data: feedback } = useApi<FeedbackAnalytics>(() => analyticsAPI.getFeedbackAnalytics());
   const { data: recentActivity } = useApi<RecentActivity[]>(() => analyticsAPI.getRecentActivity());
-  const { data: basic } = useApi<BasicAnalytics>(() => analyticsAPI.getBasicAnalytics());
+  const today = new Date().toISOString().split('T')[0];
+  const { data: basic } = useApi<BasicAnalytics>(() => analyticsAPI.getBasicAnalytics(undefined, today));
 
   // AI Strategy Brief (separate from feedback insights)
   const [aiPlanLoading, setAiPlanLoading] = useState(false);
@@ -640,9 +642,10 @@ export const AdvancedAnalytics: React.FC = () => {
           <CardHeader>
             <CardTitle>View Distribution by Hour</CardTitle>
             <CardDescription>
-              Peak: {basic?.viewDistribution?.peakHour || '—'} ({basic?.viewDistribution?.peakViews ?? 0} views)
+              Today ({today}). Peak: {basic?.viewDistribution?.peakHour || '—'} ({basic?.viewDistribution?.peakViews ?? 0} views)
             </CardDescription>
           </CardHeader>
+
           <CardContent>
             {hourlyViewData?.some(d => d.views > 0) ? (
               <div className="h-64">

@@ -368,14 +368,26 @@ public class AnalyticsService {
         if (restaurantIdOpt.isEmpty()) {
             throw new RuntimeException("Restaurant not found for user");
         }
-        return buildBasicAnalytics(restaurantIdOpt.get());
+        return buildBasicAnalytics(restaurantIdOpt.get(), null);
+    }
+
+    public BasicAnalyticsDTO getBasicAnalytics(java.time.LocalDate date) {
+        Optional<Long> restaurantIdOpt = restaurantService.getCurrentUserRestaurantId();
+        if (restaurantIdOpt.isEmpty()) {
+            throw new RuntimeException("Restaurant not found for user");
+        }
+        return buildBasicAnalytics(restaurantIdOpt.get(), date);
     }
 
     public BasicAnalyticsDTO getBasicAnalyticsById(Long restaurantId) {
-        return buildBasicAnalytics(restaurantId);
+        return buildBasicAnalytics(restaurantId, null);
     }
 
-    private BasicAnalyticsDTO buildBasicAnalytics(Long restaurantId) {
+    public BasicAnalyticsDTO getBasicAnalyticsById(Long restaurantId, java.time.LocalDate date) {
+        return buildBasicAnalytics(restaurantId, date);
+    }
+
+    private BasicAnalyticsDTO buildBasicAnalytics(Long restaurantId, java.time.LocalDate date) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime lastMonth = now.minusMonths(1);
         LocalDateTime twoMonthsAgo = now.minusMonths(2);
@@ -425,14 +437,14 @@ public class AnalyticsService {
         List<Object[]> dailyData = menuViewRepository.findDailyViewCounts(restaurantId, lastWeek);
         List<BasicAnalyticsDTO.DailyViewPoint> dailyViews = new ArrayList<>();
         for (Object[] row : dailyData) {
-            String date = row[0].toString();
+            String dateStr = row[0].toString();
             Long views = (Long) row[1];
             // Get scans for the same day
             long scans = menuViewRepository.countByRestaurantIdAndViewTypeAndCreatedAtBetween(
                 restaurantId, MenuView.ViewType.MENU_SCAN,
-                LocalDate.parse(date).atStartOfDay(),
-                LocalDate.parse(date).atStartOfDay().plusDays(1));
-            dailyViews.add(new BasicAnalyticsDTO.DailyViewPoint(date, views, scans));
+                LocalDate.parse(dateStr).atStartOfDay(),
+                LocalDate.parse(dateStr).atStartOfDay().plusDays(1));
+            dailyViews.add(new BasicAnalyticsDTO.DailyViewPoint(dateStr, views, scans));
         }
 
         // Recent Menu Updates
@@ -447,7 +459,14 @@ public class AnalyticsService {
             .collect(Collectors.toList());
 
         // View Distribution (hourly)
-        List<Object[]> hourlyData = menuViewRepository.findHourlyViewDistribution(restaurantId, lastWeek);
+        List<Object[]> hourlyData;
+        if (date != null) {
+            LocalDateTime startOfDay = date.atStartOfDay();
+            LocalDateTime endOfDay = startOfDay.plusDays(1);
+            hourlyData = menuViewRepository.findHourlyViewDistributionBetween(restaurantId, startOfDay, endOfDay);
+        } else {
+            hourlyData = menuViewRepository.findHourlyViewDistribution(restaurantId, lastWeek);
+        }
         List<BasicAnalyticsDTO.ViewDistribution.HourlyData> hourlyViews = new ArrayList<>();
         String peakHour = "12:00";
         long peakViews = 0;

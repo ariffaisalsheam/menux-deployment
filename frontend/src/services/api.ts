@@ -251,9 +251,11 @@ export const analyticsAPI = {
     return response.data
   },
 
-  getBasicAnalytics: async (restaurantId?: number) => {
+  getBasicAnalytics: async (restaurantId?: number, date?: string) => {
     const url = restaurantId ? `/analytics/restaurant/${restaurantId}/basic` : '/analytics/restaurant/basic'
-    const response = await api.get(url)
+    const response = await api.get(url, {
+      params: date ? { date } : undefined
+    })
     return response.data
   },
 

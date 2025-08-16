@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/analytics")
@@ -61,15 +62,16 @@ public class AnalyticsController {
     // Basic Analytics for non-Pro users
     @GetMapping("/restaurant/basic")
     @PreAuthorize("hasRole('RESTAURANT_OWNER')")
-    public ResponseEntity<BasicAnalyticsDTO> getBasicAnalytics() {
-        BasicAnalyticsDTO analytics = analyticsService.getBasicAnalytics();
+    public ResponseEntity<BasicAnalyticsDTO> getBasicAnalytics(@RequestParam(value = "date", required = false) LocalDate date) {
+        BasicAnalyticsDTO analytics = analyticsService.getBasicAnalytics(date);
         return ResponseEntity.ok(analytics);
     }
 
     @GetMapping("/restaurant/{restaurantId}/basic")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<BasicAnalyticsDTO> getBasicAnalyticsById(@PathVariable Long restaurantId) {
-        BasicAnalyticsDTO analytics = analyticsService.getBasicAnalyticsById(restaurantId);
+    public ResponseEntity<BasicAnalyticsDTO> getBasicAnalyticsById(@PathVariable Long restaurantId,
+                                                                  @RequestParam(value = "date", required = false) LocalDate date) {
+        BasicAnalyticsDTO analytics = analyticsService.getBasicAnalyticsById(restaurantId, date);
         return ResponseEntity.ok(analytics);
     }
 }
