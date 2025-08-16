@@ -86,6 +86,9 @@ jwt:
 
 app:
   time-zone: ${APP_TIME_ZONE:Asia/Dhaka}
+  flyway:
+    # Toggle to run Flyway repair once on startup to fix checksum mismatches (e.g., V7). Default false.
+    repair-on-start: ${APP_FLYWAY_REPAIR_ON_START:false}
   frontend:
     # Frontend base URL used when generating QR code links
     # Override with APP_FRONTEND_URL env var in deployment
