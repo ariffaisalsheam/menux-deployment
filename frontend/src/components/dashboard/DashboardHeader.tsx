@@ -1,5 +1,6 @@
 import React from 'react';
-import { Bell, Search, Settings, User, LogOut, Crown } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Search, Settings, User, LogOut, Crown } from 'lucide-react';
 import { SidebarTrigger } from '../ui/sidebar';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -13,9 +14,17 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { useAuth } from '../../contexts/AuthContext';
+import { NotificationBell } from '../notifications/NotificationBell';
+import { mediaProxyUrl } from '../../services/api';
 
 export const DashboardHeader: React.FC = () => {
   const { user, logout } = useAuth();
+  const photoUrl = React.useMemo(() => {
+    if (!user?.photoPath) return undefined;
+    const url = mediaProxyUrl(user.photoPath);
+    // Cache-bust when the path changes so the latest image loads
+    return `${url}${url.includes('?') ? '&' : '?'}_=${Date.now()}`;
+  }, [user?.photoPath]);
 
   const handleLogout = () => {
     logout();
@@ -50,17 +59,14 @@ export const DashboardHeader: React.FC = () => {
           </Button>
 
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-4 w-4" />
-            <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-          </Button>
+          <NotificationBell />
 
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src="/avatars/01.png" alt={user?.fullName} />
+                  <AvatarImage key={photoUrl} src={photoUrl} alt={user?.fullName} />
                   <AvatarFallback>
                     {user?.fullName?.split(' ').map(n => n[0]).join('') || 'U'}
                   </AvatarFallback>
@@ -77,9 +83,11 @@ export const DashboardHeader: React.FC = () => {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
+              <DropdownMenuItem asChild>
+                <Link to="/dashboard/owner-profile">
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <Settings className="mr-2 h-4 w-4" />

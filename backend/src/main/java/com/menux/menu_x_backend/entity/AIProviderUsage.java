@@ -9,7 +9,7 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "ai_provider_usage")
+@jakarta.persistence.Table(name = "ai_provider_usage")
 public class AIProviderUsage {
 
     @Id

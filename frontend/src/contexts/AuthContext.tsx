@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
-import { userAPI } from '../services/api'
+import { userAPI, profileAPI } from '../services/api'
 
 export interface User {
   id: number
   username: string
   email: string
   fullName: string
+  photoPath?: string | null
   role: 'DINER' | 'RESTAURANT_OWNER' | 'SUPER_ADMIN'
   restaurantId?: number
   restaurantName?: string
@@ -131,9 +132,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const refreshUser = useCallback(async () => {
     try {
       // Fetch fresh user data from the API
-      const freshUserData = await userAPI.getCurrentProfile()
-      setUser(freshUserData)
-      localStorage.setItem('user', JSON.stringify(freshUserData))
+      const base = await userAPI.getCurrentProfile()
+      // Merge role-specific profile to include photoPath and any updated identity fields
+      let merged = { ...base } as User
+      try {
+        if (base?.role === 'RESTAURANT_OWNER') {
+          const owner = await profileAPI.getOwnerProfile()
+          merged = {
+            ...merged,
+            fullName: owner.fullName || merged.fullName,
+            email: owner.email || merged.email,
+            photoPath: owner.photoPath ?? merged.photoPath,
+            restaurantName: owner.restaurant?.name || merged.restaurantName,
+            restaurantId: owner.restaurant?.id || merged.restaurantId,
+          }
+        } else if (base?.role === 'SUPER_ADMIN') {
+          const admin = await profileAPI.getAdminProfile()
+          merged = {
+            ...merged,
+            fullName: admin.fullName || merged.fullName,
+            email: admin.email || merged.email,
+            photoPath: admin.photoPath ?? merged.photoPath,
+          }
+        }
+      } catch (innerErr) {
+        // If role-specific profile fails, continue with base
+        console.warn('Role profile fetch failed, using base profile:', innerErr)
+      }
+      setUser(merged)
+      localStorage.setItem('user', JSON.stringify(merged))
     } catch (error) {
       console.error('Error refreshing user data:', error)
       // Fallback to localStorage data
@@ -148,6 +175,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     }
   }, [])
+
+  // Keep in-memory token in sync when backend returns a refreshed token
+  useEffect(() => {
+    const onTokenRefreshed = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { token?: string } | undefined
+      if (detail?.token) {
+        setToken(detail.token)
+        try {
+          localStorage.setItem('token', detail.token)
+        } catch {}
+        // Refresh user profile to reflect potential identity changes (e.g., username)
+        refreshUser().catch((err) => console.warn('refreshUser after token refresh failed:', err))
+      }
+    }
+    window.addEventListener('auth:token-refreshed', onTokenRefreshed as EventListener)
+    return () => {
+      window.removeEventListener('auth:token-refreshed', onTokenRefreshed as EventListener)
+    }
+  }, [refreshUser])
 
   const value: AuthContextType = {
     user,

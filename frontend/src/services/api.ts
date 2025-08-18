@@ -32,7 +32,21 @@ api.interceptors.request.use(
 
 // Add response interceptor to handle auth errors and improve error messages
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // If backend returned a refreshed token (e.g., after username change), store it
+    const authHeader = (response.headers?.['authorization'] as string) || (response.headers as any)?.['Authorization']
+    if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+      const newToken = authHeader.substring(7)
+      try {
+        localStorage.setItem('token', newToken)
+        // Notify app to update in-memory auth state
+        window.dispatchEvent(new CustomEvent('auth:token-refreshed', { detail: { token: newToken } }))
+      } catch (e) {
+        // non-blocking; continue
+      }
+    }
+    return response
+  },
   (error) => {
     if (error.response?.status === 401) {
       // Token expired or invalid
@@ -158,7 +172,7 @@ export const restaurantAPI = {
   },
 
   getRestaurantById: async (id: number) => {
-    const response = await api.get(`/admin/restaurants/${id}`)
+    const response = await api.get(`/admin/restaurants/${id}`, { params: { _ts: Date.now() } })
     return response.data
   },
 
@@ -352,6 +366,57 @@ export const aiConfigAPI = {
   }
 }
 
+// Admin Tools API (Super Admin only)
+export const adminAPI = {
+  sendTestPush: async (payload?: { title?: string; body?: string; data?: Record<string, any> }) => {
+    const response = await api.post('/admin/notifications/test-push', payload || {})
+    return response.data as { success: boolean; notificationId?: number; error?: string }
+  },
+
+  broadcast: async (payload: { title: string; body: string; target?: 'RESTAURANT_OWNERS' | 'ALL_ACTIVE' }) => {
+    const response = await api.post('/admin/notifications/broadcast', payload)
+    return response.data as { success: boolean; target: string; recipients: number; created: number; error?: string }
+  },
+
+  listRecentNotifications: async (page = 0, size = 20) => {
+    const response = await api.get('/admin/notifications/recent', { params: { page, size } })
+    return response.data as {
+      content: Array<{
+        id: number
+        targetUserId?: number
+        type: string
+        title: string
+        body: string
+        data?: string
+        priority: string
+        status: string
+        readAt?: string
+        createdAt: string
+      }>
+      page: number
+      size: number
+      totalElements: number
+      totalPages: number
+      hasNext: boolean
+    }
+  },
+
+  getDeliveryAttempts: async (notificationId: number) => {
+    const response = await api.get(`/admin/notifications/${notificationId}/delivery-attempts`)
+    return response.data as Array<{
+      id: number
+      notificationId: number
+      channel: string
+      status: string
+      providerMessageId?: string
+      responseCode?: string
+      errorMessage?: string
+      attemptAt: string
+      retryCount: number
+    }>
+  }
+}
+
 // Media API
 export const mediaAPI = {
   uploadImage: async (file: File, restaurantId?: number) => {
@@ -368,6 +433,187 @@ export const mediaProxyUrl = (pathOrUrl?: string) => {
   if (!pathOrUrl) return ''
   const base = (API_BASE_URL || '').replace(/\/$/, '') // ensure no trailing slash
   return `${base}/media/stream?path=${encodeURIComponent(pathOrUrl)}`
+}
+
+// Public Settings API (no auth required)
+export const publicSettingsAPI = {
+  getAll: async (): Promise<Array<{ key: string; value: string }>> => {
+    const response = await api.get('/public/settings')
+    return response.data
+  },
+  getSetting: async (key: string): Promise<{ key: string; value: string } | null> => {
+    try {
+      const response = await api.get(`/public/settings/${encodeURIComponent(key)}`)
+      return response.data
+    } catch (_) {
+      return null
+    }
+  }
+}
+
+// Manual Payments API (Manual bKash)
+export interface ManualPaymentSubmitRequest {
+  amount: number
+  trxId: string
+  senderMsisdn: string
+  screenshotPath?: string
+}
+
+export interface ManualPaymentDto {
+  id: number
+  ownerId: number
+  restaurantId: number
+  method?: string | null
+  amount: number
+  currency?: string | null
+  trxId: string
+  senderMsisdn: string
+  screenshotPath?: string | null
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  note?: string | null
+  createdAt: string
+  verifiedAt?: string | null
+  verifiedBy?: number | null
+}
+
+export const paymentsAPI = {
+  submitManualBkash: async (payload: ManualPaymentSubmitRequest): Promise<ManualPaymentDto> => {
+    const response = await api.post('/payments/manual-bkash', payload)
+    return response.data
+  },
+  listMyPayments: async (): Promise<ManualPaymentDto[]> => {
+    const response = await api.get('/payments/my')
+    return response.data
+  }
+}
+
+export const adminPaymentsAPI = {
+  list: async (status?: 'PENDING' | 'APPROVED' | 'REJECTED'): Promise<ManualPaymentDto[]> => {
+    const response = await api.get('/admin/payments/manual-bkash', {
+      params: status ? { status } : undefined
+    })
+    return response.data
+  },
+  approve: async (id: number, note?: string): Promise<ManualPaymentDto> => {
+    const response = await api.post(`/admin/payments/manual-bkash/${id}/approve`, note ? { note } : {})
+    return response.data
+  },
+
+  reject: async (id: number, note?: string): Promise<ManualPaymentDto> => {
+    const response = await api.post(`/admin/payments/manual-bkash/${id}/reject`, note ? { note } : {})
+    return response.data
+  }
+}
+
+// Admin Approvals API
+export interface ApprovalDto {
+  id: number
+  type: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  requestedBy: number
+  approverId?: number | null
+  reason?: string | null
+  payload?: any
+  createdAt: string
+  decidedAt?: string | null
+}
+
+export const adminApprovalsAPI = {
+  list: async (status?: 'PENDING' | 'APPROVED' | 'REJECTED'): Promise<ApprovalDto[]> => {
+    const response = await api.get('/admin/approvals', {
+      params: status ? { status } : undefined
+    })
+    return response.data
+  },
+  approve: async (id: number, note?: string): Promise<ApprovalDto> => {
+    const response = await api.post(`/admin/approvals/${id}/approve`, note ? { note } : {})
+    return response.data
+  },
+  reject: async (id: number, note?: string): Promise<ApprovalDto> => {
+    const response = await api.post(`/admin/approvals/${id}/reject`, note ? { note } : {})
+    return response.data
+  },
+}
+
+// Subscription API (Owner + Admin)
+export interface RestaurantSubscriptionDTO {
+  id: number
+  restaurantId: number
+  plan?: 'PRO' | 'BASIC' | null
+  status?: 'TRIALING' | 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'CANCELED' | 'SUSPENDED' | null
+  trialStartAt?: string | null
+  trialEndAt?: string | null
+  // Added for parity with Admin view and countdown precedence
+  graceEndAt?: string | null
+  currentPeriodStartAt?: string | null
+  currentPeriodEndAt?: string | null
+  cancelAtPeriodEnd?: boolean | null
+  canceledAt?: string | null
+  trialDaysRemaining?: number | null
+  paidDaysRemaining?: number | null
+}
+
+export interface RestaurantSubscriptionEventDTO {
+  id: number
+  subscriptionId: number
+  eventType: string
+  metadata?: string | null
+  createdAt: string
+}
+
+export const subscriptionAPI = {
+  getStatus: async (): Promise<RestaurantSubscriptionDTO> => {
+    const res = await api.get('/owner/subscription', { params: { _ts: Date.now() } })
+    return res.data
+  },
+  startTrial: async (): Promise<RestaurantSubscriptionDTO> => {
+    const res = await api.post('/owner/subscription/start-trial')
+    return res.data
+  },
+  getEvents: async (): Promise<RestaurantSubscriptionEventDTO[]> => {
+    const res = await api.get('/owner/subscription/events', { params: { _ts: Date.now() } })
+    return res.data
+  }
+}
+
+export const adminSubscriptionAPI = {
+  get: async (restaurantId: number): Promise<RestaurantSubscriptionDTO> => {
+    const res = await api.get(`/admin/subscriptions/${restaurantId}`, { params: { _ts: Date.now() } })
+    return res.data
+  },
+  grant: async (restaurantId: number, days: number): Promise<RestaurantSubscriptionDTO> => {
+    const res = await api.post(`/admin/subscriptions/${restaurantId}/grant`, { days })
+    return res.data
+  },
+  startTrial: async (restaurantId: number): Promise<RestaurantSubscriptionDTO> => {
+    const res = await api.post(`/admin/subscriptions/${restaurantId}/start-trial`)
+    return res.data
+  },
+  setTrialDays: async (restaurantId: number, days: number): Promise<RestaurantSubscriptionDTO> => {
+    const res = await api.post(`/admin/subscriptions/${restaurantId}/set-trial-days`, { days })
+    return res.data
+  },
+  setPaidDays: async (restaurantId: number, days: number): Promise<RestaurantSubscriptionDTO> => {
+    const res = await api.post(`/admin/subscriptions/${restaurantId}/set-paid-days`, { days })
+    return res.data
+  },
+  suspend: async (restaurantId: number, reason?: string): Promise<RestaurantSubscriptionDTO> => {
+    const payload = reason && reason.trim().length > 0 ? { reason } : {}
+    const res = await api.post(`/admin/subscriptions/${restaurantId}/suspend`, payload)
+    return res.data
+  },
+  unsuspend: async (restaurantId: number): Promise<RestaurantSubscriptionDTO> => {
+    const res = await api.post(`/admin/subscriptions/${restaurantId}/unsuspend`)
+    return res.data
+  },
+  getEvents: async (restaurantId: number): Promise<RestaurantSubscriptionEventDTO[]> => {
+    const res = await api.get(`/admin/subscriptions/${restaurantId}/events`, { params: { _ts: Date.now() } })
+    return res.data
+  },
+  debugRunDaily: async (): Promise<{ status: string }> => {
+    const res = await api.post('/admin/subscriptions/debug/run-daily')
+    return res.data
+  }
 }
 
 // Platform Config API (Admin only)
@@ -595,6 +841,310 @@ export const tableAPI = {
     })
     return response.data
   }
+}
+
+// Notifications API
+export interface NotificationFilters {
+  unreadOnly?: boolean
+  page?: number
+  size?: number
+}
+
+export const notificationAPI = {
+  getNotifications: async (filters: NotificationFilters = {}) => {
+    const params: any = {}
+    if (typeof filters.unreadOnly === 'boolean') params.unreadOnly = filters.unreadOnly
+    if (typeof filters.page === 'number') params.page = filters.page
+    if (typeof filters.size === 'number') params.size = filters.size
+    const response = await api.get('/notifications', { params })
+    return response.data
+  },
+
+  getUnreadCount: async (): Promise<{ count: number }> => {
+    const response = await api.get('/notifications/unread-count')
+    return response.data
+  },
+
+  markRead: async (id: number) => {
+    const response = await api.post(`/notifications/${id}/read`)
+    return response.data
+  },
+
+  markAllRead: async () => {
+    const response = await api.post('/notifications/read-all')
+    return response.data
+  },
+
+  getPreferences: async () => {
+    const response = await api.get('/notifications/preferences')
+    return response.data
+  },
+
+  updatePreferences: async (prefs: any) => {
+    const response = await api.put('/notifications/preferences', prefs)
+    return response.data
+  },
+
+  registerPushSubscription: async (sub: { endpoint: string; p256dh: string; auth: string; userAgent?: string }) => {
+    const response = await api.post('/notifications/push-subscriptions', sub)
+    return response.data
+  },
+
+  deletePushSubscription: async (id: number) => {
+    const response = await api.delete(`/notifications/push-subscriptions/${id}`)
+    return response.data
+  },
+
+  getVapidPublicKey: async (): Promise<string | null> => {
+    const response = await api.get('/notifications/vapid-public-key')
+    // 204 No Content means not configured
+    return response.status === 204 ? null : response.data
+  },
+}
+
+// Profile & Security API (Owner + Admin)
+export interface OwnerProfile {
+  id: number
+  username: string
+  email: string
+  fullName: string
+  phoneNumber?: string | null
+  photoPath?: string | null
+  restaurant?: {
+    id: number
+    name: string
+    address: string
+    phoneNumber?: string | null
+    email?: string | null
+    subscriptionPlan: 'BASIC' | 'PRO'
+  } | null
+}
+
+export interface UpdateOwnerProfileRequest {
+  fullName?: string
+  phoneNumber?: string
+  email?: string
+  username?: string
+  business?: {
+    name?: string
+    address?: string
+    phoneNumber?: string
+    email?: string
+    description?: string
+  }
+}
+
+export interface UpdatePasswordRequest {
+  currentPassword: string
+  newPassword: string
+}
+
+export interface AdminProfile {
+  id: number
+  username: string
+  email: string
+  fullName: string
+  phoneNumber?: string | null
+  photoPath?: string | null
+  roles: string[]
+}
+
+export interface UsernameAvailabilityResponse {
+  username: string
+  available: boolean
+  suggestions: string[]
+}
+
+export const profileAPI = {
+  // Owner Self Profile
+  getOwnerProfile: async (): Promise<OwnerProfile> => {
+    const res = await api.get('/owner/profile')
+    return res.data
+  },
+  updateOwnerProfile: async (payload: UpdateOwnerProfileRequest): Promise<OwnerProfile> => {
+    const res = await api.put('/owner/profile', payload)
+    return res.data
+  },
+  updateOwnerPassword: async (payload: UpdatePasswordRequest): Promise<void> => {
+    await api.put('/owner/profile/password', payload)
+  },
+  setOwnerProfilePhoto: async (path: string): Promise<OwnerProfile> => {
+    const res = await api.put('/owner/profile/photo', { path })
+    return res.data
+  },
+  uploadOwnerProfilePhoto: async (file: File): Promise<OwnerProfile> => {
+    const uploaded = await mediaAPI.uploadImage(file)
+    const res = await api.put('/owner/profile/photo', { path: uploaded.path })
+    return res.data
+  },
+  checkOwnerUsernameAvailability: async (username: string): Promise<UsernameAvailabilityResponse> => {
+    const res = await api.get('/owner/profile/username-availability', { params: { username } })
+    return res.data
+  },
+  // Owner Self Delete
+  deleteOwnerAccount: async (): Promise<void> => {
+    await api.delete('/owner/profile')
+  },
+
+  // Super Admin Self Profile
+  getAdminProfile: async (): Promise<AdminProfile> => {
+    const res = await api.get('/admin/profile')
+    return res.data
+  },
+  updateAdminProfile: async (payload: Partial<AdminProfile>): Promise<AdminProfile> => {
+    const res = await api.put('/admin/profile', payload)
+    return res.data
+  },
+  updateAdminPassword: async (payload: UpdatePasswordRequest): Promise<void> => {
+    await api.put('/admin/profile/password', payload)
+  },
+  setAdminProfilePhoto: async (path: string): Promise<AdminProfile> => {
+    const res = await api.put('/admin/profile/photo', { path })
+    return res.data
+  },
+}
+
+// RBAC (Super Admin)
+export interface RbacRole { id: number; name: string; description?: string | null; permissions: string[] }
+export interface RbacPermission { key: string; description?: string | null }
+
+export const rbacAPI = {
+  listRoles: async (): Promise<RbacRole[]> => {
+    const res = await api.get('/admin/rbac/roles')
+    return res.data
+  },
+  createRole: async (payload: { name: string; description?: string; permissions?: string[] }): Promise<RbacRole> => {
+    const res = await api.post('/admin/rbac/roles', payload)
+    return res.data
+  },
+  updateRole: async (id: number, payload: { name?: string; description?: string; permissions?: string[] }): Promise<RbacRole> => {
+    const { name, description, permissions } = payload
+    // Update name/description first
+    let res = await api.put(`/admin/rbac/roles/${id}`, { name, description })
+    let role: RbacRole = res.data
+    // Optionally update permissions
+    if (permissions && Array.isArray(permissions)) {
+      res = await api.put(`/admin/rbac/roles/${id}/permissions`, { permissionKeys: permissions })
+      role = res.data
+    }
+    return role
+  },
+  deleteRole: async (id: number): Promise<void> => {
+    await api.delete(`/admin/rbac/roles/${id}`)
+  },
+  listPermissions: async (): Promise<RbacPermission[]> => {
+    const res = await api.get('/admin/rbac/permissions')
+    return res.data
+  },
+  setRolePermissions: async (id: number, permissionKeys: string[]): Promise<RbacRole> => {
+    const res = await api.put(`/admin/rbac/roles/${id}/permissions`, { permissionKeys })
+    return res.data
+  },
+  assignRoleToUser: async (userId: number, roleId: number): Promise<void> => {
+    await api.post(`/admin/rbac/users/${userId}/roles/${roleId}`)
+  },
+  revokeRoleFromUser: async (userId: number, roleId: number): Promise<void> => {
+    await api.delete(`/admin/rbac/users/${userId}/roles/${roleId}`)
+  },
+}
+
+// Audit Logs (Super Admin)
+export interface AuditLogDto {
+  id: number
+  actorId?: number | null
+  actorUsername?: string | null
+  action: string
+  resourceType: string
+  resourceId?: string | null
+  metadata?: any
+  ip?: string | null
+  userAgent?: string | null
+  createdAt: string
+}
+
+export const auditAPI = {
+  list: async (filters: { actorId?: number; action?: string; resourceType?: string; from?: string; to?: string; page?: number; size?: number } = {}): Promise<{ content: AuditLogDto[]; page: number; size: number; totalElements: number; totalPages: number; hasNext: boolean }> => {
+    const res = await api.get('/admin/audit', { params: filters })
+    return res.data
+  },
+  get: async (id: number): Promise<AuditLogDto> => {
+    const res = await api.get(`/admin/audit/${id}`)
+    return res.data
+  },
+}
+
+// Approvals (Super Admin)
+export interface ApprovalRequestDto {
+  id: number
+  type: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  requestedBy: number
+  approverId?: number | null
+  reason?: string | null
+  payload?: any
+  createdAt: string
+  decidedAt?: string | null
+}
+
+export const approvalsAPI = {
+  list: async (status?: 'PENDING' | 'APPROVED' | 'REJECTED'): Promise<ApprovalRequestDto[]> => {
+    const res = await api.get('/admin/approvals', { params: status ? { status } : undefined })
+    return res.data
+  },
+  approve: async (id: number, note?: string): Promise<ApprovalRequestDto> => {
+    const res = await api.post(`/admin/approvals/${id}/approve`, note ? { note } : {})
+    return res.data
+  },
+  reject: async (id: number, note?: string): Promise<ApprovalRequestDto> => {
+    const res = await api.post(`/admin/approvals/${id}/reject`, note ? { note } : {})
+    return res.data
+  },
+}
+
+// Billing & Payment Methods (Owner)
+export interface BillingInvoice {
+  id: number
+  periodStart: string
+  periodEnd: string
+  amount: number
+  status: 'PAID' | 'DUE' | 'VOID'
+  createdAt: string
+  paidAt?: string | null
+  method?: string | null
+  reference?: string | null
+}
+
+export interface PaymentMethodDto {
+  id: number
+  type: 'BKASH' | 'CARD' | 'CASH'
+  label?: string | null
+  last4?: string | null
+  isDefault: boolean
+  createdAt: string
+}
+
+export const billingAPI = {
+  listInvoices: async (): Promise<BillingInvoice[]> => {
+    const res = await api.get('/owner/subscription/invoices')
+    return res.data
+  },
+}
+
+export const paymentMethodsAPI = {
+  list: async (): Promise<PaymentMethodDto[]> => {
+    const res = await api.get('/owner/payment-methods')
+    return res.data
+  },
+  add: async (payload: { type: 'BKASH' | 'CARD' | 'CASH'; label?: string; tokenOrNumber?: string; last4?: string }): Promise<PaymentMethodDto> => {
+    const res = await api.post('/owner/payment-methods', payload)
+    return res.data
+  },
+  remove: async (id: number): Promise<void> => {
+    await api.delete(`/owner/payment-methods/${id}`)
+  },
+  setDefault: async (id: number): Promise<void> => {
+    await api.post(`/owner/payment-methods/${id}/default`)
+  },
 }
 
 export default api

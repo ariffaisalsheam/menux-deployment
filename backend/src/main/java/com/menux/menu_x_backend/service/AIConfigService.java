@@ -6,6 +6,8 @@ import com.menux.menu_x_backend.repository.AIProviderConfigRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,7 +45,7 @@ public class AIConfigService {
 
     public AIProviderConfigDTO getProviderById(Long id) {
         AIProviderConfig config = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("AI Provider not found with id: " + id));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "AI Provider not found with id: " + id));
         return convertToDTO(config);
     }
 
@@ -145,7 +147,7 @@ public class AIConfigService {
 
     public AIProviderTestResult testProvider(Long id) {
         AIProviderConfig config = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("AI Provider not found with id: " + id));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "AI Provider not found with id: " + id));
         String apiKey = encryptionService.decrypt(config.getEncryptedApiKey());
         AIProviderTestResult result = aiProviderTestService.testProvider(
                 config.getType(), apiKey, config.getEndpoint(), config.getSettings(), config.getModel());

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -9,7 +9,9 @@ import {
   Settings,
   Shield,
   Brain,
-  TestTube
+  Bell,
+  CreditCard,
+  BadgeCheck
 } from 'lucide-react';
 import {
   Sidebar,
@@ -21,6 +23,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '../ui/sidebar';
+import { Badge } from '../ui/badge';
+import { notificationAPI, adminPaymentsAPI, adminApprovalsAPI } from '../../services/api';
 
 const navigationItems = [
   {
@@ -39,9 +43,14 @@ const navigationItems = [
     href: '/admin/restaurants',
   },
   {
-    title: 'Plan Management',
+    title: 'Subscription Management',
     icon: Crown,
     href: '/admin/plans',
+  },
+  {
+    title: 'Subscriptions',
+    icon: Crown,
+    href: '/admin/subscriptions',
   },
   {
     title: 'Platform Analytics',
@@ -49,9 +58,19 @@ const navigationItems = [
     href: '/admin/analytics',
   },
   {
-    title: 'Platform Settings',
-    icon: Settings,
-    href: '/admin/settings',
+    title: 'Manual Payments',
+    icon: CreditCard,
+    href: '/admin/payments',
+  },
+  {
+    title: 'Approvals',
+    icon: BadgeCheck,
+    href: '/admin/approvals',
+  },
+  {
+    title: 'Notifications',
+    icon: Bell,
+    href: '/admin/notifications',
   }
 ];
 
@@ -62,11 +81,6 @@ const systemItems = [
     href: '/admin/ai-config',
   },
   {
-    title: 'System Tests',
-    icon: TestTube,
-    href: '/admin/tests',
-  },
-  {
     title: 'System Settings',
     icon: Settings,
     href: '/admin/settings',
@@ -75,6 +89,35 @@ const systemItems = [
 
 export const AdminSidebar: React.FC = () => {
   const location = useLocation();
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [pendingPayments, setPendingPayments] = useState<number>(0);
+  const [pendingApprovals, setPendingApprovals] = useState<number>(0);
+
+  const loadCounts = async () => {
+    try {
+      const [unreadRes, pendingPaymentsList, pendingApprovalsList] = await Promise.all([
+        notificationAPI.getUnreadCount().catch(() => ({ count: 0 })),
+        adminPaymentsAPI.list('PENDING').catch(() => ([] as any[])),
+        adminApprovalsAPI.list('PENDING').catch(() => ([] as any[])),
+      ]);
+      setUnreadCount((unreadRes as any)?.count || 0);
+      setPendingPayments(Array.isArray(pendingPaymentsList) ? pendingPaymentsList.length : 0);
+      setPendingApprovals(Array.isArray(pendingApprovalsList) ? pendingApprovalsList.length : 0);
+    } catch (e) {
+      console.error('Failed to load admin sidebar counts', e);
+    }
+  };
+
+  useEffect(() => {
+    loadCounts();
+    const id = setInterval(loadCounts, 45000);
+    const onChanged = () => loadCounts();
+    window.addEventListener('notifications:changed', onChanged as EventListener);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('notifications:changed', onChanged as EventListener);
+    };
+  }, []);
 
   return (
     <Sidebar>
@@ -106,6 +149,15 @@ export const AdminSidebar: React.FC = () => {
                       >
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
+                        {item.title === 'Manual Payments' && pendingPayments > 0 && (
+                          <Badge variant="secondary" className="ml-auto text-xs">{pendingPayments}</Badge>
+                        )}
+                        {item.title === 'Approvals' && pendingApprovals > 0 && (
+                          <Badge variant="secondary" className="ml-auto text-xs">{pendingApprovals}</Badge>
+                        )}
+                        {item.title === 'Notifications' && unreadCount > 0 && (
+                          <Badge variant="secondary" className="ml-auto text-xs">{unreadCount > 99 ? '99+' : unreadCount}</Badge>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

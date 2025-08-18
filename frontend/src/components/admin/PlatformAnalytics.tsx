@@ -2,7 +2,38 @@ import React from 'react';
 import { BarChart3, TrendingUp, Users, Store } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 
+import { analyticsAPI } from '../../services/api';
+import { useApi } from '../../hooks/useApi';
+import { LoadingSkeleton } from '../common/LoadingSpinner';
+import { ErrorDisplay } from '../common/ErrorDisplay';
+
+interface PlatformAnalyticsData {
+  totalUsers: number;
+  totalRestaurants: number;
+  proSubscriptions: number;
+  basicSubscriptions: number;
+  monthlyRevenue: number;
+  activeUsers: number;
+  systemHealth: number;
+  totalOrders: number;
+  conversionRate: number;
+}
+
 export const PlatformAnalytics: React.FC = () => {
+  const { data: analytics, loading, error, refetch } = useApi<PlatformAnalyticsData>(() => analyticsAPI.getPlatformAnalytics());
+
+  if (loading) {
+    return <LoadingSkeleton lines={8} />;
+  }
+
+  if (error) {
+    return <ErrorDisplay error={error} onRetry={refetch} />;
+  }
+
+  if (!analytics) {
+    return <ErrorDisplay error="Analytics data not available" onRetry={refetch} />;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -21,7 +52,7 @@ export const PlatformAnalytics: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Users</p>
-                <p className="text-2xl font-bold">1,247</p>
+                <p className="text-2xl font-bold">{analytics.totalUsers.toLocaleString()}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <TrendingUp className="w-4 h-4 text-green-600" />
                   <span className="text-sm text-green-600">+12.5%</span>
@@ -36,7 +67,7 @@ export const PlatformAnalytics: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Restaurants</p>
-                <p className="text-2xl font-bold">523</p>
+                <p className="text-2xl font-bold">{analytics.totalRestaurants.toLocaleString()}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <TrendingUp className="w-4 h-4 text-green-600" />
                   <span className="text-sm text-green-600">+8.2%</span>
@@ -51,7 +82,7 @@ export const PlatformAnalytics: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Orders</p>
-                <p className="text-2xl font-bold">45,231</p>
+                <p className="text-2xl font-bold">{analytics.totalOrders.toLocaleString()}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <TrendingUp className="w-4 h-4 text-green-600" />
                   <span className="text-sm text-green-600">+18.7%</span>
@@ -66,7 +97,7 @@ export const PlatformAnalytics: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Platform Revenue</p>
-                <p className="text-2xl font-bold">৳133,500</p>
+                <p className="text-2xl font-bold">৳{analytics.monthlyRevenue.toLocaleString()}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <TrendingUp className="w-4 h-4 text-green-600" />
                   <span className="text-sm text-green-600">+22.1%</span>

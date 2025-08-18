@@ -121,6 +121,20 @@ public class PlatformSettingService {
         createSystemSettingIfNotExists("pricing.pro_plan_monthly", "1500", PlatformSetting.ValueType.INTEGER, "Pro plan monthly price in BDT", true);
         createSystemSettingIfNotExists("features.registration_enabled", "true", PlatformSetting.ValueType.BOOLEAN, "Whether new user registration is enabled", false);
         createSystemSettingIfNotExists("features.ai_enabled", "true", PlatformSetting.ValueType.BOOLEAN, "Whether AI features are enabled globally", false);
+
+        // Public settings for manual bKash payments (avoid 404s on /api/public/settings/*)
+        createSystemSettingIfNotExists("PAYMENT_BKASH_MERCHANT_NUMBER", "", PlatformSetting.ValueType.STRING, "Public bKash merchant number for manual payments", true);
+        createSystemSettingIfNotExists("PAYMENT_BKASH_MIN_AMOUNT", "0", PlatformSetting.ValueType.INTEGER, "Minimum manual bKash payment amount in BDT", true);
+        createSystemSettingIfNotExists("PAYMENT_BKASH_INSTRUCTIONS", "", PlatformSetting.ValueType.STRING, "Public instructions for manual bKash payment", true);
+
+        // Subscription & Trials (system settings)
+        createSystemSettingIfNotExists("SUB_TRIAL_ENABLED", "true", PlatformSetting.ValueType.BOOLEAN, "Whether free trial is enabled for new restaurants", false);
+        createSystemSettingIfNotExists("SUB_TRIAL_DAYS_DEFAULT", "14", PlatformSetting.ValueType.INTEGER, "Default number of trial days", false);
+        createSystemSettingIfNotExists("SUB_GRACE_DAYS_DEFAULT", "3", PlatformSetting.ValueType.INTEGER, "Default grace period after trial/period ends", false);
+        createSystemSettingIfNotExists("SUB_PRO_PERIOD_DAYS", "30", PlatformSetting.ValueType.INTEGER, "Number of days granted per approved PRO period (e.g., monthly)", false);
+        createSystemSettingIfNotExists("SUB_NOTIFY_DAYS_BEFORE_TRIAL_END", "3", PlatformSetting.ValueType.INTEGER, "Days before trial end to notify owner", false);
+        createSystemSettingIfNotExists("SUB_NOTIFY_DAYS_BEFORE_PERIOD_END", "5", PlatformSetting.ValueType.INTEGER, "Days before paid period end to notify owner", false);
+        createSystemSettingIfNotExists("SUB_TRIAL_ONCE_PER_RESTAURANT", "true", PlatformSetting.ValueType.BOOLEAN, "Allow only one trial per restaurant", false);
     }
     
     private void createSystemSettingIfNotExists(String key, String value, PlatformSetting.ValueType valueType, String description, Boolean isPublic) {

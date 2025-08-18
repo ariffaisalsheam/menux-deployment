@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Bell, Settings, LogOut, User } from 'lucide-react';
+import { Shield, Settings, LogOut, User } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { 
@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { useAuth } from '../../contexts/AuthContext';
 import { SidebarTrigger } from '../ui/sidebar';
+import { NotificationBell } from '../notifications/NotificationBell';
 
 export const AdminHeader: React.FC = () => {
   const { user, logout } = useAuth();
@@ -37,10 +38,7 @@ export const AdminHeader: React.FC = () => {
 
         <div className="flex items-center gap-4">
           {/* Notifications */}
-          <Button variant="ghost" size="sm" className="relative">
-            <Bell className="w-4 h-4" />
-            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-          </Button>
+          <NotificationBell />
 
           {/* User Menu */}
           <DropdownMenu>

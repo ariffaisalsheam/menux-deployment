@@ -39,8 +39,9 @@ public class OrderDTOService {
         dto.setUpdatedAt(order.getUpdatedAt());
         dto.setCompletedAt(order.getCompletedAt());
         
-        // Safely convert orderItems without triggering lazy loading
-        List<OrderDTO.OrderItemDTO> items = order.getOrderItems().stream()
+        // Safely load order items via repository to avoid LazyInitializationException
+        List<OrderItem> orderItems = orderItemRepository.findByOrderId(order.getId());
+        List<OrderDTO.OrderItemDTO> items = orderItems.stream()
             .map(this::createOrderItemDTO)
             .collect(Collectors.toList());
         dto.setItems(items);

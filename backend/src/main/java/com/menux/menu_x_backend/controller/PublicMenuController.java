@@ -6,6 +6,7 @@ import com.menux.menu_x_backend.entity.Feedback;
 import com.menux.menu_x_backend.entity.Order;
 import com.menux.menu_x_backend.entity.OrderItem;
 import com.menux.menu_x_backend.entity.Table;
+import com.menux.menu_x_backend.entity.Notification;
 import com.menux.menu_x_backend.repository.RestaurantRepository;
 import com.menux.menu_x_backend.repository.MenuItemRepository;
 import com.menux.menu_x_backend.repository.FeedbackRepository;
@@ -13,6 +14,7 @@ import com.menux.menu_x_backend.repository.OrderRepository;
 import com.menux.menu_x_backend.repository.TableRepository;
 import com.menux.menu_x_backend.repository.OrderItemRepository;
 import com.menux.menu_x_backend.service.MenuViewTrackingService;
+import com.menux.menu_x_backend.service.NotificationService;
 import com.menux.menu_x_backend.util.InputSanitizer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -61,6 +63,9 @@ public class PublicMenuController {
 
     @Autowired
     private MenuViewTrackingService menuViewTrackingService;
+
+    @Autowired
+    private NotificationService notificationService;
 
     /**
      * Get restaurant information and menu for public viewing
@@ -144,6 +149,26 @@ public class PublicMenuController {
         feedback.setCreatedAt(LocalDateTime.now());
 
         feedbackRepository.save(feedback);
+
+        // Create notification for restaurant owner (non-blocking if it fails)
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put("feedbackId", feedback.getId());
+            data.put("rating", feedback.getRating());
+            data.put("orderNumber", feedback.getOrderNumber());
+            data.put("submittedAt", feedback.getCreatedAt());
+            notificationService.createNotification(
+                    restaurant.getOwnerId(),
+                    restaurant.getId(),
+                    Notification.Type.FEEDBACK_RECEIVED,
+                    "New feedback received",
+                    String.format("You received a %d★ feedback%s",
+                            feedback.getRating(),
+                            feedback.getCustomerName() != null && !feedback.getCustomerName().isBlank() ?
+                                    (" from " + feedback.getCustomerName()) : ""),
+                    data
+            );
+        } catch (Exception ignored) {}
 
         Map<String, String> response = new HashMap<>();
         response.put("message", "Thank you for your feedback!");
@@ -274,6 +299,27 @@ public class PublicMenuController {
                 // Save order again to ensure bidirectional relation is flushed
                 orderRepository.save(savedOrder);
             }
+
+            // Create notification for restaurant owner (non-blocking if it fails)
+            try {
+                Map<String, Object> data = new HashMap<>();
+                data.put("orderId", savedOrder.getId());
+                data.put("orderNumber", savedOrder.getOrderNumber());
+                data.put("tableNumber", savedOrder.getTableNumber());
+                data.put("totalAmount", savedOrder.getTotalAmount());
+                data.put("status", savedOrder.getStatus().name());
+                notificationService.createNotification(
+                        restaurant.getOwnerId(),
+                        restaurant.getId(),
+                        Notification.Type.NEW_ORDER,
+                        "New order placed",
+                        String.format("Order %s placed%s",
+                                savedOrder.getOrderNumber(),
+                                savedOrder.getTableNumber() != null && !savedOrder.getTableNumber().isBlank()
+                                        ? " at table " + savedOrder.getTableNumber() : ""),
+                        data
+                );
+            } catch (Exception ignored) {}
 
             Map<String, Object> response = new HashMap<>();
             response.put("orderId", savedOrder.getId());

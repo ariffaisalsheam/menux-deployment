@@ -1,0 +1,23 @@
+package com.menux.menu_x_backend.repository;
+
+import com.menux.menu_x_backend.entity.Notification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface NotificationRepository extends JpaRepository<Notification, Long> {
+    Page<Notification> findByTargetUserIdOrderByCreatedAtDesc(Long targetUserId, Pageable pageable);
+    Page<Notification> findByTargetUserIdAndReadAtIsNullOrderByCreatedAtDesc(Long targetUserId, Pageable pageable);
+
+    long countByTargetUserIdAndReadAtIsNull(Long targetUserId);
+
+    Optional<Notification> findByIdAndTargetUserId(Long id, Long targetUserId);
+
+    List<Notification> findByTargetUserIdAndReadAtIsNull(Long targetUserId);
+
+    // Admin: list recent notifications across all users
+    Page<Notification> findAllByOrderByCreatedAtDesc(Pageable pageable);
+}

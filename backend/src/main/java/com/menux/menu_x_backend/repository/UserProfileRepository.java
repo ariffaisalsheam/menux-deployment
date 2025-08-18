@@ -1,0 +1,11 @@
+package com.menux.menu_x_backend.repository;
+
+import com.menux.menu_x_backend.entity.User;
+import com.menux.menu_x_backend.entity.UserProfile;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface UserProfileRepository extends JpaRepository<UserProfile, Long> {
+    Optional<UserProfile> findByUser(User user);
+}

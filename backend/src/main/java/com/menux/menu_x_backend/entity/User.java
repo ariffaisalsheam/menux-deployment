@@ -11,6 +11,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @jakarta.persistence.Table(name = "users")
@@ -54,11 +56,14 @@ public class User implements UserDetails {
     
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-    
+
     // One user can own one restaurant (for Restaurant Owner role)
     // Note: Removed direct relationship to prevent lazy loading issues
     // Use RestaurantService.getRestaurantByOwnerId() instead
-    
+
+    @Transient
+    private Set<GrantedAuthority> extraAuthorities = new HashSet<>();
+
     public enum Role {
         DINER, RESTAURANT_OWNER, SUPER_ADMIN
     }
@@ -78,7 +83,10 @@ public class User implements UserDetails {
     // UserDetails implementation
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+        Set<GrantedAuthority> auths = new HashSet<>();
+        auths.add(new SimpleGrantedAuthority("ROLE_" + role.name()));
+        if (extraAuthorities != null) auths.addAll(extraAuthorities);
+        return auths;
     }
     
     @Override
@@ -151,6 +159,8 @@ public class User implements UserDetails {
     
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public Set<GrantedAuthority> getExtraAuthorities() { return extraAuthorities; }
+    public void setExtraAuthorities(Set<GrantedAuthority> extraAuthorities) { this.extraAuthorities = extraAuthorities; }
     
     // Restaurant getters/setters removed to prevent lazy loading issues
     // Use RestaurantService.getRestaurantByOwnerId(this.getId()) instead

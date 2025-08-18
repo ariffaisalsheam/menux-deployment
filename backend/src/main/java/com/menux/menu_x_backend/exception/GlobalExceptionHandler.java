@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
@@ -42,6 +43,23 @@ public class GlobalExceptionHandler {
     // Generate unique error ID for tracking
     private String generateErrorId() {
         return UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    // Preserve status codes thrown via ResponseStatusException (e.g., 409 conflicts)
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatusException(
+            ResponseStatusException ex, WebRequest request) {
+        String errorId = generateErrorId();
+        logger.warn("Request failed [{}]: {}", errorId, ex.getReason());
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                ex.getReason() != null ? ex.getReason() : "Request failed",
+                ex.getStatusCode().value(),
+                LocalDateTime.now(),
+                Map.of("errorId", errorId)
+        );
+
+        return new ResponseEntity<>(errorResponse, ex.getStatusCode());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

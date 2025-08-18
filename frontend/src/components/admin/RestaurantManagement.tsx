@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Store, Search, Filter, Edit, QrCode, MoreHorizontal } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Store, Search, Filter, Edit, QrCode, MoreHorizontal, Crown } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -15,16 +16,18 @@ import {
   DropdownMenuTrigger 
 } from '../ui/dropdown-menu';
 
-interface Restaurant {
+interface AdminRestaurant {
   id: number;
   name: string;
-  owner: string;
-  email: string;
-  plan: 'BASIC' | 'PRO';
-  status: 'active' | 'inactive';
+  description?: string;
   address: string;
-  phone: string;
-  joinDate: string;
+  phone?: string;
+  email?: string;
+  subscriptionPlan: 'BASIC' | 'PRO';
+  status: string; // backend sends string (defaults to "active")
+  joinDate?: string;
+  ownerName?: string;
+  ownerEmail?: string;
   totalOrders: number;
   monthlyRevenue: number;
 }
@@ -35,6 +38,7 @@ export const RestaurantManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [planFilter, setPlanFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const navigate = useNavigate();
 
   // Fetch restaurants
   const {
@@ -42,14 +46,15 @@ export const RestaurantManagement: React.FC = () => {
     loading,
     error,
     refetch
-  } = useApi<Restaurant[]>(() => restaurantAPI.getAllRestaurants());
+  } = useApi<AdminRestaurant[]>(() => restaurantAPI.getAllRestaurants());
 
   const safeRestaurants = restaurants ?? [];
-  const filteredRestaurants = safeRestaurants.filter(restaurant => {
-    const matchesSearch = restaurant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         restaurant.owner.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesPlan = planFilter === 'all' || restaurant.plan === planFilter;
-    const matchesStatus = statusFilter === 'all' || restaurant.status === statusFilter;
+  const filteredRestaurants = safeRestaurants.filter((restaurant) => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = (restaurant.name || '').toLowerCase().includes(term) ||
+      (restaurant.ownerName || '').toLowerCase().includes(term);
+    const matchesPlan = planFilter === 'all' || restaurant.subscriptionPlan === (planFilter as 'BASIC' | 'PRO');
+    const matchesStatus = statusFilter === 'all' || (restaurant.status || '').toLowerCase() === statusFilter.toLowerCase();
     return matchesSearch && matchesPlan && matchesStatus;
   });
 
@@ -95,7 +100,7 @@ export const RestaurantManagement: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold text-green-600">
-                {safeRestaurants.filter(r => r.status === 'active').length}
+                {safeRestaurants.filter(r => (r.status || '').toLowerCase() === 'active').length}
               </p>
               <p className="text-sm text-muted-foreground">Active</p>
             </div>
@@ -105,7 +110,7 @@ export const RestaurantManagement: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold text-blue-600">
-                {safeRestaurants.filter(r => r.plan === 'PRO').length}
+                {safeRestaurants.filter(r => r.subscriptionPlan === 'PRO').length}
               </p>
               <p className="text-sm text-muted-foreground">Pro Plans</p>
             </div>
@@ -115,7 +120,7 @@ export const RestaurantManagement: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold text-purple-600">
-                ৳{safeRestaurants.reduce((sum, r) => sum + r.monthlyRevenue, 0).toLocaleString()}
+                ৳{safeRestaurants.reduce((sum, r) => sum + (r.monthlyRevenue || 0), 0).toLocaleString()}
               </p>
               <p className="text-sm text-muted-foreground">Total Revenue</p>
             </div>
@@ -182,28 +187,28 @@ export const RestaurantManagement: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-medium">{restaurant.name}</p>
-                      <Badge variant={restaurant.plan === 'PRO' ? 'default' : 'secondary'}>
-                        {restaurant.plan}
+                      <Badge variant={restaurant.subscriptionPlan === 'PRO' ? 'default' : 'secondary'}>
+                        {restaurant.subscriptionPlan}
                       </Badge>
-                      <Badge variant={restaurant.status === 'active' ? 'default' : 'destructive'}>
+                      <Badge variant={(restaurant.status || '').toLowerCase() === 'active' ? 'default' : 'destructive'}>
                         {restaurant.status}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">Owner: {restaurant.owner}</p>
+                    <p className="text-sm text-muted-foreground">Owner: {restaurant.ownerName || '—'}</p>
                     <p className="text-sm text-muted-foreground">{restaurant.address}</p>
                     <div className="flex items-center gap-4 mt-1">
                       <span className="text-xs text-muted-foreground">
-                        {restaurant.totalOrders} orders
+                        {restaurant.totalOrders ?? 0} orders
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        ৳{restaurant.monthlyRevenue.toLocaleString()}/month
+                        ৳{(restaurant.monthlyRevenue || 0).toLocaleString()}/month
                       </span>
                     </div>
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline">
+                  <Button size="sm" variant="outline" onClick={() => navigate(`/admin/restaurants/${restaurant.id}/qr`)}>
                     <QrCode className="w-4 h-4 mr-1" />
                     QR Code
                   </Button>
@@ -214,12 +219,16 @@ export const RestaurantManagement: React.FC = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate(`/admin/restaurants/${restaurant.id}`)}>
                         <Edit className="w-4 h-4 mr-2" />
                         Edit Restaurant
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate(`/admin/restaurants/${restaurant.id}/analytics`)}>
                         View Dashboard
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate(`/admin/restaurants/${restaurant.id}/subscription`)}>
+                        <Crown className="w-4 h-4 mr-2" />
+                        View Subscription
                       </DropdownMenuItem>
                       <DropdownMenuItem>
                         Download Reports
