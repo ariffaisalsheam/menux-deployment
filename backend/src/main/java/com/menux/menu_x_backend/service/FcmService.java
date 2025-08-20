@@ -21,6 +21,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -117,7 +121,7 @@ public class FcmService {
             attempt = deliveryAttemptRepository.save(attempt);
 
             try {
-                Message msg = buildMessage(n, t.getToken());
+                Message msg = buildMessage(n, t);
                 String messageId = FirebaseMessaging.getInstance().send(msg);
                 attempt.setStatus(DeliveryAttempt.Status.SENT);
                 attempt.setProviderMessageId(messageId);
@@ -155,27 +159,65 @@ public class FcmService {
         }
     }
 
-    private Message buildMessage(Notification n, String token) {
-        // Basic notification payload; data kept minimal and string-only
-        com.google.firebase.messaging.Notification notification = com.google.firebase.messaging.Notification
-                .builder()
-                .setTitle(n.getTitle())
-                .setBody(n.getBody())
-                .build();
+    private Message buildMessage(Notification n, UserPushToken t) {
+        boolean isWeb = t.getPlatform() != null && t.getPlatform().equalsIgnoreCase("web");
 
+        // For web: send data-only; SW renders with icons/images and click URL
+        // For mobile: include Notification so OS renders natively
         Map<String, String> data = new HashMap<>();
         data.put("notificationId", String.valueOf(n.getId()));
         if (n.getRestaurantId() != null) data.put("restaurantId", String.valueOf(n.getRestaurantId()));
         if (n.getType() != null) data.put("type", n.getType().name());
         if (n.getPriority() != null) data.put("priority", n.getPriority().name());
 
-        return Message.builder()
-                .setToken(token)
-                .setNotification(notification)
+        // Web needs title/body in data for SW
+        if (isWeb) {
+            data.put("title", n.getTitle() == null ? "" : n.getTitle());
+            data.put("body", n.getBody() == null ? "" : n.getBody());
+        }
+
+        // Merge any custom data (e.g., url, image, icon, badge, click_action)
+        Map<String, String> extra = extractStringMap(n.getData());
+        if (extra != null && !extra.isEmpty()) {
+            data.putAll(extra);
+        }
+
+        Message.Builder builder = Message.builder()
+                .setToken(t.getToken())
                 .putAllData(data)
                 .setAndroidConfig(AndroidConfig.builder().setPriority(AndroidConfig.Priority.HIGH).build())
-                .setApnsConfig(ApnsConfig.builder().setAps(Aps.builder().setThreadId("menux").build()).build())
-                .build();
+                .setApnsConfig(ApnsConfig.builder().setAps(Aps.builder().setThreadId("menux").build()).build());
+
+        if (!isWeb) {
+            com.google.firebase.messaging.Notification notification = com.google.firebase.messaging.Notification
+                    .builder()
+                    .setTitle(n.getTitle())
+                    .setBody(n.getBody())
+                    .build();
+            builder.setNotification(notification);
+        }
+
+        return builder.build();
+    }
+
+    private Map<String, String> extractStringMap(String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            Map<String, Object> raw = new ObjectMapper().readValue(json, new TypeReference<Map<String, Object>>() {});
+            Map<String, String> out = new HashMap<>();
+            for (Map.Entry<String, Object> e : raw.entrySet()) {
+                if (e.getKey() == null || e.getValue() == null) continue;
+                if (e.getValue() instanceof String s) {
+                    out.put(e.getKey(), s);
+                } else {
+                    // Convert simple values to strings to satisfy FCM string-only data
+                    out.put(e.getKey(), String.valueOf(e.getValue()));
+                }
+            }
+            return out;
+        } catch (JsonProcessingException ignored) {
+            return null;
+        }
     }
 
     private String hash(String s) {

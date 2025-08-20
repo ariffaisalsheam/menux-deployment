@@ -41,7 +41,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification?.data || {};
-  const url = data.url || data.click_action || '/';
+  const url = data.url || data.click_action || '/dashboard/notifications';
 
   event.waitUntil(
     (async () => {
