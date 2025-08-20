@@ -31,11 +31,26 @@ function hasConfig(): boolean {
 async function ensureServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | undefined> {
   if (!('serviceWorker' in navigator)) return undefined
   try {
-    // Reuse any existing registration first to avoid multiple SWs for root scope
+    // Reuse existing registration only if it already points to our branded SW
     const existing = await navigator.serviceWorker.getRegistration()
-    if (existing) return existing
-    // Register the minimal FCM SW served from public/
-    return await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+    const desiredScript = location.origin + '/firebase-messaging-sw.js'
+
+    if (existing) {
+      const scriptUrl = existing.active?.scriptURL || existing.installing?.scriptURL || existing.waiting?.scriptURL
+      if (scriptUrl === desiredScript) {
+        return existing
+      }
+      try {
+        // Unregister non-branded SW (e.g., /menux-sw.js) to ensure correct handler
+        await existing.unregister()
+      } catch (e) {
+        console.warn('[FCM] Failed to unregister previous SW', e)
+      }
+    }
+
+    // Register the branded FCM SW served from public/
+    const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+    return reg
   } catch (e) {
     console.warn('[FCM] SW registration failed', e)
     return undefined

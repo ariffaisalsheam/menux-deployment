@@ -4,13 +4,13 @@
 self.addEventListener('push', (event) => {
   try {
     const data = event.data ? event.data.json() : {};
-    // Try to read standard fields first; fallback to FCM-wrapped payloads
+    // Support both WebPush notification payloads and data-only FCM payloads
     const notification = data.notification || data.notificationOptions || {};
-    const title = notification.title || data.title || 'Notification';
-    const body = notification.body || data.body || '';
+    const payload = data.data || data; // common FCM wrapping
 
-    // Preserve original payload for click handling
-    const payload = data.data || data;
+    // Title/body: prefer explicit notification fields, then top-level, then data payload
+    const title = notification.title || data.title || payload.title || 'Menu.X Notification';
+    const body = notification.body || data.body || payload.body || '';
 
     // Prefer explicit notification fields, then payload fallbacks, then defaults
     const icon = notification.icon || payload.icon || '/logo/menux-logo-192x192.png';
