@@ -159,8 +159,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       closeWs()
       // Build STOMP client over SockJS
+      const wsUrl = `${hostBase}/ws${token ? `?access_token=${encodeURIComponent(token)}` : ''}`
       const client = new Client({
-        webSocketFactory: () => new SockJS(`${hostBase}/ws`),
+        webSocketFactory: () => new SockJS(wsUrl, undefined, { transports: ['websocket','xhr-streaming','eventsource','xhr-polling'] }),
         connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
         reconnectDelay: 0, // we handle backoff manually
         debug: () => {},
