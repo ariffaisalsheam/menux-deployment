@@ -116,6 +116,9 @@ const FCMComposer: React.FC = () => {
           url: clickUrl.trim() || '/',
           icon: iconDisplay || undefined,
           image: imageDisplay || undefined,
+          // Supply raw storage paths so in-app Notification Bell/modal can render via mediaProxyUrl(path)
+          iconPath: iconUploadPath || undefined,
+          imagePath: imageUploadPath || undefined,
         }
       })
       if (res.success) {
@@ -164,6 +167,9 @@ const FCMComposer: React.FC = () => {
           url: clickUrl.trim() || '/',
           icon: iconDisplay || undefined,
           image: imageDisplay || undefined,
+          // Include storage paths for in-app rendering
+          iconPath: iconUploadPath || undefined,
+          imagePath: imageUploadPath || undefined,
         }
       })
       if (res.success) setInfo('Test sent to your account (self)')

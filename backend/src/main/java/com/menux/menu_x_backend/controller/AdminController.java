@@ -173,6 +173,19 @@ public class AdminController {
             return ResponseEntity.badRequest().body(Map.of("success", false, "error", "Unsupported target"));
         }
 
+        // Build base data and merge any extra payload from request body
+        Map<String, Object> data = new HashMap<>();
+        data.put("source", "admin");
+        data.put("kind", "broadcast");
+        data.put("target", target);
+        if (body != null && body.get("data") instanceof Map<?, ?> extra) {
+            for (Map.Entry<?, ?> e : extra.entrySet()) {
+                if (e.getKey() instanceof String) {
+                    data.put((String) e.getKey(), e.getValue());
+                }
+            }
+        }
+
         int created = 0;
         for (User u : recipients) {
             var dto = notificationService.createNotification(
@@ -181,7 +194,7 @@ public class AdminController {
                     Notification.Type.GENERIC,
                     title,
                     message,
-                    Map.of("source", "admin", "kind", "broadcast", "target", target)
+                    data
             );
             if (dto != null && dto.getId() != null) created++;
         }
