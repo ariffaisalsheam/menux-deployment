@@ -13,8 +13,17 @@ self.addEventListener('push', (event) => {
     const body = notification.body || data.body || payload.body || '';
 
     // Prefer explicit notification fields, then payload fallbacks, then defaults
-    const icon = notification.icon || payload.icon || '/logo/menux-logo-192x192.png';
-    const image = notification.image || payload.image || undefined;
+    const icon =
+      notification.icon ||
+      payload.icon || payload.iconUrl || payload.icon_url || payload.iconURL ||
+      payload.logo || payload.logoUrl || payload.logo_url ||
+      payload.picture || payload.photoUrl || payload.thumbnail ||
+      '/logo/menux-logo-192x192.png';
+    const image =
+      notification.image ||
+      payload.image || payload.imageUrl || payload.image_url ||
+      payload.imagePath || payload.image_path ||
+      undefined;
     const badge = notification.badge || payload.badge || '/logo/menux-logo-192x192.png';
 
     // Respect provided tag if any; otherwise leave undefined to avoid replacement/dedup
@@ -41,7 +50,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification?.data || {};
-  const url = data.url || data.click_action || '/dashboard/notifications';
+  const url = data.url || data.click_action || data.link || '/dashboard/notifications';
 
   event.waitUntil(
     (async () => {

@@ -136,12 +136,10 @@ export const NotificationBell: React.FC = () => {
     const notif = data?.notification || data?.notificationOptions || {}
     const payload = data?.data || {}
     const candidates = [
-      // Explicit path/url fields first (payload-level and root-level)
-      payload?.proxyUrl,
-      payload?.iconPath,
-      payload?.icon_url,
-      payload?.iconUrl,
+      // Prefer explicit icon fields (payload then data)
       payload?.icon,
+      payload?.iconUrl,
+      payload?.icon_url,
       payload?.iconURL,
       payload?.logo,
       payload?.logoUrl,
@@ -149,11 +147,9 @@ export const NotificationBell: React.FC = () => {
       payload?.picture,
       payload?.photoUrl,
       payload?.thumbnail,
-      data?.proxyUrl,
-      data?.iconPath,
-      data?.icon_url,
-      data?.iconUrl,
       data?.icon,
+      data?.iconUrl,
+      data?.icon_url,
       data?.iconURL,
       data?.logo,
       data?.logoUrl,
@@ -163,12 +159,10 @@ export const NotificationBell: React.FC = () => {
       data?.thumbnail,
       // Notification options
       notif?.icon,
-      // Root-level fallbacks
-      n?.proxyUrl,
-      n?.iconPath,
-      n?.icon_url,
-      n?.iconUrl,
+      // Root-level explicit fallbacks
       n?.icon,
+      n?.iconUrl,
+      n?.icon_url,
       n?.iconURL,
       n?.logo,
       n?.logoUrl,
@@ -176,6 +170,13 @@ export const NotificationBell: React.FC = () => {
       n?.picture,
       n?.photoUrl,
       n?.thumbnail,
+      // Last resort: generic proxy/path variants
+      payload?.proxyUrl,
+      payload?.iconPath,
+      data?.proxyUrl,
+      data?.iconPath,
+      n?.proxyUrl,
+      n?.iconPath,
     ].filter(Boolean) as string[]
     const resolved = resolveMediaUrl(candidates[0])
     return resolved || '/logo/menux-logo-192x192.png'
@@ -185,28 +186,29 @@ export const NotificationBell: React.FC = () => {
     const notif = data?.notification || data?.notificationOptions || {}
     const payload = data?.data || {}
     const candidates = [
-      // Prefer explicit image path/url at payload and data levels
-      payload?.proxyUrl,
-      payload?.imagePath,
-      payload?.image_path,
+      // Prefer explicit image fields (payload then data)
+      payload?.image,
       payload?.imageUrl,
       payload?.image_url,
-      payload?.image,
-      data?.proxyUrl,
-      data?.imagePath,
-      data?.image_path,
+      payload?.imagePath,
+      payload?.image_path,
+      data?.image,
       data?.imageUrl,
       data?.image_url,
-      data?.image,
+      data?.imagePath,
+      data?.image_path,
       // Notification options
       notif?.image,
-      // Root-level fallbacks
-      n?.proxyUrl,
-      n?.imagePath,
-      n?.image_path,
+      // Root-level explicit fallbacks
+      n?.image,
       n?.imageUrl,
       n?.image_url,
-      n?.image,
+      n?.imagePath,
+      n?.image_path,
+      // Last resort: generic proxy/path variants
+      payload?.proxyUrl,
+      data?.proxyUrl,
+      n?.proxyUrl,
     ].filter(Boolean) as string[]
     if (candidates.length === 0) return null
     const resolved = resolveMediaUrl(candidates[0])

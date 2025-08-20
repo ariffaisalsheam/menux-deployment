@@ -68,7 +68,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       message: opts.message,
       type: opts.type || 'info',
       duration: Math.max(1500, Math.min(opts.duration ?? 4000, 15000)),
-      position: opts.position || 'top-right',
+      position: opts.position || 'bottom-right',
       actionLabel: opts.actionLabel,
       onAction: opts.onAction,
     }
