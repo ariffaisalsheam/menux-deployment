@@ -98,3 +98,16 @@ app:
       url: ${SUPABASE_URL}
       service-key: ${SUPABASE_SERVICE_KEY}
       bucket: ${SUPABASE_STORAGE_BUCKET:menu-images}
+  notifications:
+    features:
+      ws: ${FEATURE_WS_NOTIFS:true}
+      sse: ${FEATURE_SSE_FALLBACK:true}
+      fcm: ${FEATURE_FCM_PUSH:false}
+    sse:
+      heartbeat-ms: ${SSE_HEARTBEAT_MS:25000}
+  firebase:
+    admin:
+      # Path to service account JSON file (mounted as secret in production)
+      service-account-json: ${FIREBASE_SERVICE_ACCOUNT_JSON:}
+      # Alternatively provide base64-encoded JSON via env
+      service-account-json-base64: ${FIREBASE_SERVICE_ACCOUNT_JSON_BASE64:}

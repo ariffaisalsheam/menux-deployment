@@ -368,15 +368,15 @@ export const aiConfigAPI = {
 
 // Admin Tools API (Super Admin only)
 export const adminAPI = {
-  sendTestPush: async (payload?: { title?: string; body?: string; data?: Record<string, any> }) => {
-    const response = await api.post('/admin/notifications/test-push', payload || {})
-    return response.data as { success: boolean; notificationId?: number; error?: string }
-  },
+sendTestPush: async (payload?: { title?: string; body?: string; data?: Record<string, any> }) => {
+const response = await api.post('/admin/notifications/test-push', payload || {})
+return response.data as { success: boolean; notificationId?: number; error?: string }
+},
 
-  broadcast: async (payload: { title: string; body: string; target?: 'RESTAURANT_OWNERS' | 'ALL_ACTIVE' }) => {
-    const response = await api.post('/admin/notifications/broadcast', payload)
-    return response.data as { success: boolean; target: string; recipients: number; created: number; error?: string }
-  },
+broadcast: async (payload: { title: string; body: string; target: 'RESTAURANT_OWNERS' | 'ALL_ACTIVE' | string; data?: Record<string, any> }) => {
+const response = await api.post('/admin/notifications/broadcast', payload)
+return response.data as { success: boolean; recipients?: number; created?: number; error?: string }
+},
 
   listRecentNotifications: async (page = 0, size = 20) => {
     const response = await api.get('/admin/notifications/recent', { params: { page, size } })
@@ -417,6 +417,84 @@ export const adminAPI = {
   }
 }
 
+// Notification Admin (Super Admin): Templates, Segments, Campaigns, Analytics
+export const notificationAdminAPI = {
+  // Templates
+  listTemplates: async (): Promise<Array<{ id: number; name: string; channel: 'push' | 'email' | 'in_app'; title?: string; body: string; variables?: string[]; enabled: boolean; updatedAt?: string }>> => {
+    const res = await api.get('/admin/notifications/templates')
+    return res.data
+  },
+  createTemplate: async (payload: { name: string; channel: 'push' | 'email' | 'in_app'; title?: string; body: string; variables?: string[]; enabled?: boolean }) => {
+    const res = await api.post('/admin/notifications/templates', payload)
+    return res.data
+  },
+  updateTemplate: async (id: number, payload: { name?: string; channel?: 'push' | 'email' | 'in_app'; title?: string; body?: string; variables?: string[]; enabled?: boolean }) => {
+    const res = await api.put(`/admin/notifications/templates/${id}`, payload)
+    return res.data
+  },
+  deleteTemplate: async (id: number) => {
+    const res = await api.delete(`/admin/notifications/templates/${id}`)
+    return res.data
+  },
+
+  // Segments
+  listSegments: async (): Promise<Array<{ id: number; name: string; description?: string; filters: Record<string, any>; estimatedCount?: number; updatedAt?: string }>> => {
+    const res = await api.get('/admin/notifications/segments')
+    return res.data
+  },
+  createSegment: async (payload: { name: string; description?: string; filters: Record<string, any> }) => {
+    const res = await api.post('/admin/notifications/segments', payload)
+    return res.data
+  },
+  updateSegment: async (id: number, payload: { name?: string; description?: string; filters?: Record<string, any> }) => {
+    const res = await api.put(`/admin/notifications/segments/${id}`, payload)
+    return res.data
+  },
+  deleteSegment: async (id: number) => {
+    const res = await api.delete(`/admin/notifications/segments/${id}`)
+    return res.data
+  },
+  previewSegment: async (payload: { filters: Record<string, any> }) => {
+    const res = await api.post('/admin/notifications/segments/preview', payload)
+    return res.data as { estimatedCount: number }
+  },
+
+  // Campaigns (Scheduling + A/B testing)
+  listCampaigns: async (): Promise<Array<{ id: number; name: string; templateId?: number; segmentId?: number; status: 'DRAFT' | 'SCHEDULED' | 'RUNNING' | 'PAUSED' | 'COMPLETED'; scheduleAt?: string | null; variants?: Array<{ key: string; templateId?: number; weight?: number }>; requireApproval?: boolean; createdAt?: string; updatedAt?: string }>> => {
+    const res = await api.get('/admin/notifications/campaigns')
+    return res.data
+  },
+  createCampaign: async (payload: { name: string; templateId?: number; segmentId?: number; scheduleAt?: string | null; variants?: Array<{ key: string; templateId?: number; weight?: number }>; requireApproval?: boolean }) => {
+    const res = await api.post('/admin/notifications/campaigns', payload)
+    return res.data
+  },
+  updateCampaign: async (id: number, payload: Partial<{ name: string; templateId: number; segmentId: number; scheduleAt: string | null; status: string; variants: Array<{ key: string; templateId?: number; weight?: number }>; requireApproval: boolean }>) => {
+    const res = await api.put(`/admin/notifications/campaigns/${id}`, payload)
+    return res.data
+  },
+  scheduleCampaign: async (id: number, payload: { scheduleAt: string }) => {
+    const res = await api.post(`/admin/notifications/campaigns/${id}/schedule`, payload)
+    return res.data
+  },
+  pauseCampaign: async (id: number) => {
+    const res = await api.post(`/admin/notifications/campaigns/${id}/pause`)
+    return res.data
+  },
+  resumeCampaign: async (id: number) => {
+    const res = await api.post(`/admin/notifications/campaigns/${id}/resume`)
+    return res.data
+  },
+
+  // Delivery & Engagement Analytics
+  getAnalyticsSummary: async (params: { from?: string; to?: string } = {}) => {
+    const res = await api.get('/admin/notifications/analytics/summary', { params })
+    return res.data as { sent: number; delivered: number; failed: number; opened?: number; clicked?: number; unsubscribed?: number }
+  },
+  getAnalyticsSeries: async (params: { metric: 'sent' | 'delivered' | 'failed' | 'opened' | 'clicked'; from?: string; to?: string; interval?: 'hour' | 'day' | 'week' }) => {
+    const res = await api.get('/admin/notifications/analytics/series', { params })
+    return res.data as Array<{ ts: string; value: number }>
+  }
+}
 // Media API
 export const mediaAPI = {
   uploadImage: async (file: File, restaurantId?: number) => {
@@ -875,6 +953,49 @@ export const notificationAPI = {
     return response.data
   },
 
+  // Clear/dismiss a single notification with graceful fallback endpoints
+  clear: async (id: number) => {
+    try {
+      // Preferred RESTful delete
+      const response = await api.delete(`/notifications/${id}`)
+      return response.data
+    } catch (e: any) {
+      const status = e?.response?.status
+      if (status === 404 || status === 405) {
+        // Fallback to explicit dismiss endpoint if delete not available
+        const response = await api.post(`/notifications/${id}/dismiss`)
+        return response.data
+      }
+      throw e
+    }
+  },
+
+  // Clear/dismiss all notifications with graceful fallback endpoints
+  clearAll: async () => {
+    try {
+      // Try collection delete first
+      const response = await api.delete('/notifications')
+      return response.data
+    } catch (e: any) {
+      const status = e?.response?.status
+      if (status === 404 || status === 405) {
+        // Try common fallbacks
+        try {
+          const res = await api.post('/notifications/clear-all')
+          return res.data
+        } catch (e2: any) {
+          const status2 = e2?.response?.status
+          if (status2 === 404 || status2 === 405) {
+            const res3 = await api.post('/notifications/dismiss-all')
+            return res3.data
+          }
+          throw e2
+        }
+      }
+      throw e
+    }
+  },
+
   getPreferences: async () => {
     const response = await api.get('/notifications/preferences')
     return response.data
@@ -885,20 +1006,17 @@ export const notificationAPI = {
     return response.data
   },
 
-  registerPushSubscription: async (sub: { endpoint: string; p256dh: string; auth: string; userAgent?: string }) => {
-    const response = await api.post('/notifications/push-subscriptions', sub)
+  // FCM device token registration (requires JWT)
+  registerFcmToken: async (payload: { token: string; platform: 'web' | 'ios' | 'android'; deviceId?: string; deviceModel?: string }) => {
+    // Backend will trim/normalize and set lastUsedAt
+    const response = await api.post('/notifications/fcm-tokens', payload)
     return response.data
   },
 
-  deletePushSubscription: async (id: number) => {
-    const response = await api.delete(`/notifications/push-subscriptions/${id}`)
+  // FCM token removal by token value (requires JWT)
+  removeFcmToken: async (token: string) => {
+    const response = await api.delete('/notifications/fcm-tokens', { params: { token } })
     return response.data
-  },
-
-  getVapidPublicKey: async (): Promise<string | null> => {
-    const response = await api.get('/notifications/vapid-public-key')
-    // 204 No Content means not configured
-    return response.status === 204 ? null : response.data
   },
 }
 

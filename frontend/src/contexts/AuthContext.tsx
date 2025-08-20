@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
-import { userAPI, profileAPI } from '../services/api'
+import { userAPI, profileAPI, notificationAPI } from '../services/api'
+import { ensureFcmReadyAndRegister, getStoredFcmToken, removeWebFcmToken } from '../services/fcm'
 
 export interface User {
   id: number
@@ -86,9 +87,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(newUser)
     localStorage.setItem('token', newToken)
     localStorage.setItem('user', JSON.stringify(newUser))
+    // Best-effort: kick off FCM token registration for web
+    // Do not await to keep UI responsive
+    ensureFcmReadyAndRegister().catch((e) => console.warn('[FCM] registration after login failed', e))
   }
 
   const logout = () => {
+    // Best-effort: remove FCM token on backend before clearing stored auth
+    try {
+      const fcmToken = getStoredFcmToken()
+      if (fcmToken) {
+        // Fire-and-forget backend removal while auth token still present in localStorage
+        notificationAPI.removeFcmToken(fcmToken).catch((e: any) => {
+          console.warn('[FCM] backend token removal on logout failed', e?.message || e)
+        })
+      }
+      // Remove local FCM token from messaging and storage
+      removeWebFcmToken(fcmToken || undefined, false).catch(() => {})
+      try { localStorage.removeItem('fcm_web_token') } catch {}
+    } catch {}
+
     setToken(null)
     setUser(null)
     setOriginalAdminUser(null)
@@ -187,6 +205,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } catch {}
         // Refresh user profile to reflect potential identity changes (e.g., username)
         refreshUser().catch((err) => console.warn('refreshUser after token refresh failed:', err))
+        // Re-register FCM token if needed after auth token refresh
+        ensureFcmReadyAndRegister().catch(() => {})
       }
     }
     window.addEventListener('auth:token-refreshed', onTokenRefreshed as EventListener)
@@ -194,6 +214,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       window.removeEventListener('auth:token-refreshed', onTokenRefreshed as EventListener)
     }
   }, [refreshUser])
+
+  // After app load/refresh, if authenticated, ensure FCM is registered
+  // This covers the case where a page reload restores auth state but
+  // FCM registration hasn't been triggered yet in this session.
+  useEffect(() => {
+    if (!isLoading && user && token) {
+      ensureFcmReadyAndRegister().catch(() => {})
+    }
+  }, [isLoading, token, user?.id])
 
   const value: AuthContextType = {
     user,

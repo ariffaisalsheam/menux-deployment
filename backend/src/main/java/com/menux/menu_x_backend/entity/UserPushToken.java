@@ -4,26 +4,27 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@jakarta.persistence.Table(name = "push_subscriptions")
-public class PushSubscription {
+@jakarta.persistence.Table(name = "user_push_tokens")
+public class UserPushToken {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id")
+    @Column(name = "user_id", nullable = false)
     private Long userId;
 
     @Column(nullable = false, unique = true, columnDefinition = "text")
-    private String endpoint;
+    private String token;
 
-    @Column(nullable = false, columnDefinition = "text")
-    private String p256dh;
+    @Column(length = 20)
+    private String platform; // ios | android | web
 
-    @Column(nullable = false, columnDefinition = "text")
-    private String auth;
+    @Column(name = "device_id", length = 128)
+    private String deviceId;
 
-    @Column(name = "user_agent", length = 255)
-    private String userAgent;
+    @Column(name = "device_model", length = 256)
+    private String deviceModel;
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
@@ -50,14 +51,14 @@ public class PushSubscription {
     public Long getId() { return id; }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
-    public String getEndpoint() { return endpoint; }
-    public void setEndpoint(String endpoint) { this.endpoint = endpoint; }
-    public String getP256dh() { return p256dh; }
-    public void setP256dh(String p256dh) { this.p256dh = p256dh; }
-    public String getAuth() { return auth; }
-    public void setAuth(String auth) { this.auth = auth; }
-    public String getUserAgent() { return userAgent; }
-    public void setUserAgent(String userAgent) { this.userAgent = userAgent; }
+    public String getToken() { return token; }
+    public void setToken(String token) { this.token = token; }
+    public String getPlatform() { return platform; }
+    public void setPlatform(String platform) { this.platform = platform; }
+    public String getDeviceId() { return deviceId; }
+    public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
+    public String getDeviceModel() { return deviceModel; }
+    public void setDeviceModel(String deviceModel) { this.deviceModel = deviceModel; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean active) { isActive = active; }
     public LocalDateTime getCreatedAt() { return createdAt; }

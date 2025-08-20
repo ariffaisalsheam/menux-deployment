@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 @jakarta.persistence.Table(name = "delivery_attempts")
 public class DeliveryAttempt {
 
-    public enum Channel { IN_APP, WEB_PUSH, EMAIL, SMS }
+    public enum Channel { IN_APP, WEB_PUSH, EMAIL, SMS, FCM }
     public enum Status { PENDING, SENT, FAILED, RETRY, SUPPRESSED }
 
     @Id

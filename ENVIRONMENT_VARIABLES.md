@@ -45,6 +45,25 @@ This document lists all required environment variables for the Menu.X applicatio
 - `VITE_APP_NAME` (optional): Display name for the app
 - `VITE_APP_VERSION` (optional): Display version label
 
+#### Realtime (WebSocket/SSE)
+- `VITE_WS_ENABLED` (optional): Enable WebSocket (STOMP over SockJS) as the primary realtime channel. Defaults to `true` when unset. Set to `false` to force SSE-only.
+
+#### Firebase Cloud Messaging (Web)
+Required if FCM web push is enabled for owner/admin dashboards.
+
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_FIREBASE_VAPID_KEY` (public VAPID key from Firebase console)
+
+Notes:
+- Web notifications are now FCM-only (legacy Web Push/VAPID subscription UI has been removed).
+- The frontend registers the service worker at `/firebase-messaging-sw.js` (file located at `frontend/public/firebase-messaging-sw.js`). Ensure it is served at the site root.
+- Browser Notification permission must be granted; when blocked, notification toggles are disabled by design.
+
 ## AI Provider Configuration
 AI provider keys are NOT set via environment variables. They are configured by Super Admin users through the web interface and stored encrypted in the database for security.
 
@@ -70,6 +89,17 @@ APP_TIME_ZONE=Asia/Dhaka
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=your-service-role-key
 SUPABASE_STORAGE_BUCKET=menu-images
+
+# Frontend: Firebase Cloud Messaging (Web)
+VITE_API_BASE_URL=http://localhost:8080/api
+VITE_WS_ENABLED=true
+VITE_FIREBASE_API_KEY=your-firebase-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-app.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-firebase-project-id
+VITE_FIREBASE_STORAGE_BUCKET=your-firebase-project-id.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=1234567890
+VITE_FIREBASE_APP_ID=1:1234567890:web:abcdef0123456789
+VITE_FIREBASE_VAPID_KEY=your-firebase-web-push-cert-key
 ```
 
 ## Security Best Practices
@@ -78,3 +108,11 @@ SUPABASE_STORAGE_BUCKET=menu-images
 3. Rotate JWT secrets regularly in production
 4. Use HTTPS in production environments
 5. Restrict CORS origins to your actual domains
+
+## Deprecations
+- Backend Web Push (VAPID) has been removed. The following variables are no longer used and should be unset in your environment:
+  - `VAPID_PUBLIC_KEY`
+  - `VAPID_PRIVATE_KEY`
+  - `VAPID_SUBJECT`
+  
+Web notifications are delivered via Firebase Cloud Messaging (FCM) only.

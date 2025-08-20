@@ -90,6 +90,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         // Permit all OPTIONS requests for CORS preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Permit WebSocket/SockJS handshake endpoints; JWT validated by handshake interceptor
+                        .requestMatchers("/ws/**").permitAll()
                         // Group all public API endpoints
                         .requestMatchers("/api/auth/**", "/api/public/**", "/api/menu/public/**", "/api/feedback/public/**").permitAll()
                         // Allow unauthenticated image streaming via backend proxy

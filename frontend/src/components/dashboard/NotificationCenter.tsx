@@ -6,6 +6,7 @@ import { Badge } from '../ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
 import { Switch } from '../ui/switch';
 import { notificationAPI } from '../../services/api';
+import { ensureFcmReadyAndRegister, getStoredFcmToken, removeWebFcmToken } from '../../services/fcm';
 
 export const NotificationCenter: React.FC = () => {
   const { user } = useAuth();
@@ -112,21 +113,7 @@ export const NotificationCenter: React.FC = () => {
   );
 };
 
-// Helper to convert base64 VAPID key to Uint8Array
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding)
-    .replace(/-/g, '+')
-    .replace(/_/g, '/')
-
-  const rawData = window.atob(base64)
-  const outputArray = new Uint8Array(rawData.length)
-
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i)
-  }
-  return outputArray
-}
+// Web Push removed: we rely on FCM for web notifications
 
 const NotificationPreferences: React.FC = () => {
   const [loading, setLoading] = useState(true)
@@ -134,11 +121,28 @@ const NotificationPreferences: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [inAppEnabled, setInAppEnabled] = useState<boolean>(true)
-  const [webPushEnabled, setWebPushEnabled] = useState<boolean>(false)
-  const [vapidKeyAvailable, setVapidKeyAvailable] = useState<boolean>(false)
+  const [fcmEnabled, setFcmEnabled] = useState<boolean>(false)
+  const [fcmBusy, setFcmBusy] = useState<boolean>(false)
+  const notifPermission = useMemo(() => {
+    try {
+      return (typeof Notification !== 'undefined' ? Notification.permission : 'default') as 'default' | 'granted' | 'denied'
+    } catch {
+      return 'default' as const
+    }
+  }, [])
 
-  const supportsPush = useMemo(() => {
-    return 'serviceWorker' in navigator && 'PushManager' in window
+  const firebaseConfigured = useMemo(() => {
+    try {
+      return !!(
+        import.meta.env.VITE_FIREBASE_API_KEY &&
+        import.meta.env.VITE_FIREBASE_PROJECT_ID &&
+        import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID &&
+        import.meta.env.VITE_FIREBASE_APP_ID &&
+        import.meta.env.VITE_FIREBASE_VAPID_KEY
+      )
+    } catch {
+      return false
+    }
   }, [])
 
   useEffect(() => {
@@ -149,32 +153,27 @@ const NotificationPreferences: React.FC = () => {
         const prefs = await notificationAPI.getPreferences()
         if (!mounted) return
         setInAppEnabled(prefs?.inAppEnabled ?? true)
-        setWebPushEnabled(prefs?.webPushEnabled ?? false)
       } catch (e: any) {
         if (!mounted) return
         setError(e?.message || 'Failed to load notification preferences')
       } finally {
         setLoading(false)
       }
+      // Initialize FCM toggle from local storage
       try {
-        const key = await notificationAPI.getVapidPublicKey()
-        if (!mounted) return
-        setVapidKeyAvailable(!!key)
-      } catch {
-        if (!mounted) return
-        setVapidKeyAvailable(false)
-      }
+        const hasToken = !!getStoredFcmToken()
+        if (mounted) setFcmEnabled(hasToken)
+      } catch {}
     })()
     return () => { mounted = false }
   }, [])
 
-  const savePrefs = async (next: { inAppEnabled?: boolean; webPushEnabled?: boolean }) => {
+  const savePrefs = async (next: { inAppEnabled?: boolean }) => {
     setSaving(true)
     setError(null)
     try {
       await notificationAPI.updatePreferences({
         inAppEnabled: typeof next.inAppEnabled === 'boolean' ? next.inAppEnabled : inAppEnabled,
-        webPushEnabled: typeof next.webPushEnabled === 'boolean' ? next.webPushEnabled : webPushEnabled,
       })
     } catch (e: any) {
       setError(e?.message || 'Failed to update preferences')
@@ -194,66 +193,39 @@ const NotificationPreferences: React.FC = () => {
     }
   }
 
-  const ensureSubscription = async (): Promise<PushSubscription | null> => {
-    const vapidKey = await notificationAPI.getVapidPublicKey()
-    if (!vapidKey) {
-      throw new Error('Web Push not configured by server (missing VAPID public key)')
-    }
-    const registration = await navigator.serviceWorker.register('/menux-sw.js')
-    let subscription = await registration.pushManager.getSubscription()
-    if (!subscription) {
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey)
-      })
-    }
-    return subscription
-  }
-
-  const handleWebPushToggle = async (checked: boolean) => {
+  const handleFcmToggle = async (checked: boolean) => {
     setError(null)
     setInfo(null)
-    if (!supportsPush) {
-      setError('This browser does not support Web Push')
-      return
-    }
+    setFcmBusy(true)
     if (checked) {
       try {
-        // Request permission first
-        const perm = await Notification.requestPermission()
-        if (perm !== 'granted') {
-          setError('Notification permission not granted')
-          return
+        if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+          const perm = await Notification.requestPermission()
+          if (perm !== 'granted') {
+            setError('Notification permission not granted')
+            setFcmEnabled(false)
+            return
+          }
         }
-        const sub = await ensureSubscription()
-        if (!sub) throw new Error('Failed to create push subscription')
-        const json = sub.toJSON() as any
-        await notificationAPI.registerPushSubscription({
-          endpoint: json.endpoint,
-          p256dh: json.keys?.p256dh,
-          auth: json.keys?.auth,
-          userAgent: navigator.userAgent,
-        })
-        await savePrefs({ webPushEnabled: true })
-        setWebPushEnabled(true)
-        setInfo('Web Push enabled')
+        const token = await ensureFcmReadyAndRegister()
+        if (!token) throw new Error('Failed to obtain FCM token')
+        setFcmEnabled(true)
+        setInfo('FCM enabled')
       } catch (e: any) {
-        setError(e?.message || 'Failed to enable Web Push')
-        setWebPushEnabled(false)
+        setError(e?.message || 'Failed to enable FCM')
+        setFcmEnabled(false)
+      } finally {
+        setFcmBusy(false)
       }
     } else {
-      // Disable: unsubscribe locally and update prefs
       try {
-        const reg = await navigator.serviceWorker.getRegistration()
-        const sub = await reg?.pushManager.getSubscription()
-        if (sub) {
-          await sub.unsubscribe()
-        }
-        await savePrefs({ webPushEnabled: false })
-        setWebPushEnabled(false)
-        setInfo('Web Push disabled')
+        await removeWebFcmToken(undefined, true)
+        setFcmEnabled(false)
+        setInfo('FCM disabled')
       } catch (e: any) {
-        setError(e?.message || 'Failed to disable Web Push')
+        setError(e?.message || 'Failed to disable FCM')
+      } finally {
+        setFcmBusy(false)
       }
     }
   }
@@ -283,20 +255,22 @@ const NotificationPreferences: React.FC = () => {
         </div>
         <div className="flex items-center justify-between">
           <div>
-            <div className="font-medium">Web Push</div>
+            <div className="font-medium">Firebase Cloud Messaging (Web)</div>
             <div className="text-sm text-muted-foreground">
-              Receive alerts even when this tab is not focused. {supportsPush ? '' : 'Not supported in this browser.'}
+              Use Firebase FCM for web notifications. {firebaseConfigured ? '' : 'Not configured.'}
             </div>
-            {!vapidKeyAvailable && (
-              <div className="text-xs text-amber-600">Server not configured with VAPID key; contact admin.</div>
-            )}
           </div>
           <Switch
-            disabled={saving || !supportsPush || !vapidKeyAvailable}
-            checked={webPushEnabled}
-            onCheckedChange={handleWebPushToggle}
+            disabled={saving || fcmBusy || !firebaseConfigured || notifPermission === 'denied'}
+            checked={fcmEnabled}
+            onCheckedChange={handleFcmToggle}
           />
         </div>
+        {notifPermission === 'denied' && (
+          <div className="text-xs text-amber-600">
+            Browser notifications are blocked. Enable notifications for this site in your browser settings to use FCM.
+          </div>
+        )}
       </CardContent>
     </Card>
   )

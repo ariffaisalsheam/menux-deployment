@@ -11,7 +11,8 @@ import {
   Brain,
   Bell,
   CreditCard,
-  BadgeCheck
+  BadgeCheck,
+  ScrollText
 } from 'lucide-react';
 import {
   Sidebar,
@@ -58,6 +59,11 @@ const navigationItems = [
     href: '/admin/analytics',
   },
   {
+    title: 'RBAC',
+    icon: Shield,
+    href: '/admin/rbac',
+  },
+  {
     title: 'Manual Payments',
     icon: CreditCard,
     href: '/admin/payments',
@@ -71,6 +77,11 @@ const navigationItems = [
     title: 'Notifications',
     icon: Bell,
     href: '/admin/notifications',
+  },
+  {
+    title: 'Audit Logs',
+    icon: ScrollText,
+    href: '/admin/audit-logs',
   }
 ];
 

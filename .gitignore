@@ -16,7 +16,7 @@ Thumbs.db
 
 # Private docs
 .private/  # Keep deployment notes out of version control
-
+.private/firebase/
 # Logs
 *.log
 logs/

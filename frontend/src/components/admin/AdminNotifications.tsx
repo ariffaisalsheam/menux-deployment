@@ -53,6 +53,13 @@ export const AdminNotifications: React.FC = () => {
   const [sendMsg, setSendMsg] = useState<string>('');
   const [sendErr, setSendErr] = useState<string>('');
 
+  // Test push form state
+  const [testTitle, setTestTitle] = useState('Test Push');
+  const [testBody, setTestBody] = useState('This is a test notification from Super Admin');
+  const [testSending, setTestSending] = useState(false);
+  const [testMsg, setTestMsg] = useState<string>('');
+  const [testErr, setTestErr] = useState<string>('');
+
   // List recent notifications
   const [page, setPage] = useState(0);
   const [size] = useState(20);
@@ -68,6 +75,28 @@ export const AdminNotifications: React.FC = () => {
     // refetch when pagination changes
     refetchList();
   }, [page, size]);
+
+  const onSendTest = async () => {
+    setTestSending(true);
+    setTestMsg('');
+    setTestErr('');
+    try {
+      if (!testTitle.trim() || !testBody.trim()) {
+        setTestErr('Title and body are required.');
+        return;
+      }
+      const res = await adminAPI.sendTestPush({ title: testTitle.trim(), body: testBody.trim() });
+      if ((res as any)?.success === false) {
+        setTestErr((res as any)?.error || 'Failed to send test push');
+      } else {
+        setTestMsg(`Sent. Notification #${res.notificationId ?? ''}`.trim());
+      }
+    } catch (e: any) {
+      setTestErr(e?.message || 'Failed to send test push');
+    } finally {
+      setTestSending(false);
+    }
+  };
 
   const onBroadcast = async () => {
     setSending(true);
@@ -124,6 +153,39 @@ export const AdminNotifications: React.FC = () => {
         <h1 className="text-2xl font-bold">Admin Notifications</h1>
         <p className="text-muted-foreground">Broadcast notifications and view delivery reports</p>
       </div>
+
+      {/* Test Push Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Send Test Push (to yourself)</CardTitle>
+          <CardDescription>
+            Creates a notification for your account and triggers realtime delivery (SSE/WS) and FCM if enabled.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {testMsg && (
+            <Badge variant="outline" className="text-green-700 border-green-300">{testMsg}</Badge>
+          )}
+          {testErr && (
+            <Badge variant="outline" className="text-red-700 border-red-300">{testErr}</Badge>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Title</label>
+              <Input value={testTitle} onChange={(e) => setTestTitle(e.target.value)} placeholder="Notification title" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-1">Body</label>
+              <Textarea value={testBody} onChange={(e) => setTestBody(e.target.value)} placeholder="Notification body" rows={3} />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={onSendTest} disabled={testSending}>
+              {testSending ? 'Sending...' : 'Send Test Push'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Broadcast Card */}
       <Card>

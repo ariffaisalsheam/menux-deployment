@@ -2,14 +2,12 @@ package com.menux.menu_x_backend.service;
 
 import com.menux.menu_x_backend.dto.notifications.NotificationDto;
 import com.menux.menu_x_backend.dto.notifications.NotificationPreferenceDto;
-import com.menux.menu_x_backend.dto.notifications.PushSubscriptionRequest;
 import com.menux.menu_x_backend.dto.notifications.UpdatePreferencesRequest;
 import com.menux.menu_x_backend.entity.Notification;
 import com.menux.menu_x_backend.entity.NotificationPreference;
-import com.menux.menu_x_backend.entity.PushSubscription;
 import com.menux.menu_x_backend.repository.NotificationPreferenceRepository;
 import com.menux.menu_x_backend.repository.NotificationRepository;
-import com.menux.menu_x_backend.repository.PushSubscriptionRepository;
+import com.menux.menu_x_backend.service.realtime.RealtimeNotificationGateway;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,11 +30,13 @@ public class NotificationService {
     @Autowired
     private NotificationPreferenceRepository preferenceRepository;
 
-    @Autowired
-    private PushSubscriptionRepository pushSubscriptionRepository;
+    // Legacy Web Push dependencies removed
 
     @Autowired
-    private PushNotificationService pushNotificationService;
+    private RealtimeNotificationGateway realtimeGateway;
+
+    @Autowired
+    private FcmService fcmService;
 
     public Page<NotificationDto> list(Long userId, boolean unreadOnly, Pageable pageable) {
         Page<Notification> page = unreadOnly
@@ -98,9 +98,16 @@ public class NotificationService {
         n.setPriority(Notification.Priority.NORMAL);
         n.setStatus(Notification.Status.PENDING);
         Notification saved = notificationRepository.save(n);
-        // Attempt Web Push delivery (non-blocking, best-effort)
+        // Web Push delivery removed (legacy)
+        // Publish realtime in-app notification via WebSocket/STOMP
         try {
-            pushNotificationService.sendWebPushIfEnabled(saved);
+            NotificationDto dto = NotificationDto.from(saved);
+            realtimeGateway.sendToUser(saved.getTargetUserId(), dto);
+        } catch (Exception ignored) {
+        }
+        // Attempt native push via FCM (gated by feature flag; no-op until migrations/persistence ready)
+        try {
+            fcmService.sendIfEnabled(saved);
         } catch (Exception ignored) {
         }
         return NotificationDto.from(saved);
@@ -159,25 +166,14 @@ public class NotificationService {
     }
 
     @Transactional
-    public PushSubscription registerPushSubscription(Long userId, PushSubscriptionRequest req) {
-        PushSubscription sub = pushSubscriptionRepository.findByEndpoint(req.getEndpoint())
-                .orElseGet(PushSubscription::new);
-        sub.setEndpoint(req.getEndpoint());
-        sub.setP256dh(req.getP256dh());
-        sub.setAuth(req.getAuth());
-        sub.setUserAgent(req.getUserAgent());
-        sub.setIsActive(true);
-        sub.setUserId(userId);
-        return pushSubscriptionRepository.save(sub);
+    public boolean deleteOne(Long userId, Long notificationId) {
+        return notificationRepository.deleteByIdAndTargetUserId(notificationId, userId) > 0;
     }
 
     @Transactional
-    public boolean removePushSubscription(Long userId, Long subscriptionId) {
-        Optional<PushSubscription> opt = pushSubscriptionRepository.findByIdAndUserId(subscriptionId, userId);
-        if (opt.isEmpty()) return false;
-        PushSubscription sub = opt.get();
-        sub.setIsActive(false);
-        pushSubscriptionRepository.save(sub);
-        return true;
+    public int deleteAll(Long userId) {
+        return notificationRepository.deleteByTargetUserId(userId);
     }
+
+    // Legacy push-subscription handlers removed
 }

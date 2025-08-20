@@ -124,28 +124,22 @@
 			<artifactId>javase</artifactId>
 			<version>3.5.3</version>
 		</dependency>
-		<!-- Web Push (VAPID) -->
+		<!-- Web Push (VAPID) dependencies removed as Web Push is deprecated. -->
+		<!-- WebSocket/STOMP for realtime in-app notifications -->
 		<dependency>
-			<groupId>nl.martijndwars</groupId>
-			<artifactId>web-push</artifactId>
-			<version>5.1.2</version>
-		</dependency>
-		<!-- BouncyCastle provider for cryptography used by web-push -->
-		<dependency>
-			<groupId>org.bouncycastle</groupId>
-			<artifactId>bcprov-jdk15on</artifactId>
-			<version>1.70</version>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-websocket</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.bouncycastle</groupId>
-			<artifactId>bcpkix-jdk15on</artifactId>
-			<version>1.70</version>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-messaging</artifactId>
 		</dependency>
-		<!-- jose4j is required by web-push; add explicitly to resolve JoseException type -->
+
+		<!-- Firebase Admin SDK for FCM push notifications -->
 		<dependency>
-			<groupId>org.bitbucket.b_c</groupId>
-			<artifactId>jose4j</artifactId>
-			<version>0.9.6</version>
+			<groupId>com.google.firebase</groupId>
+			<artifactId>firebase-admin</artifactId>
+			<version>9.2.0</version>
 		</dependency>
 	</dependencies>
 

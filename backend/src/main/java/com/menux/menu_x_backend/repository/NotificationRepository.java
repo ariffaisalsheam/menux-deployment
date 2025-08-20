@@ -20,4 +20,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     // Admin: list recent notifications across all users
     Page<Notification> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    // Delete a single notification for a user; returns number of rows deleted
+    int deleteByIdAndTargetUserId(Long id, Long targetUserId);
+
+    // Delete all notifications for a user; returns number of rows deleted
+    int deleteByTargetUserId(Long targetUserId);
 }

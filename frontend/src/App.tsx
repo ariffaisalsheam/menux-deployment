@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { NotificationProvider } from './contexts/NotificationContext'
 import LandingPage from './components/LandingPage'
 import LoginForm from './components/auth/LoginForm'
 import RegisterForm from './components/auth/RegisterForm'
@@ -28,36 +29,38 @@ function App() {
     <ErrorBoundary>
       <ToastProvider>
         <AuthProvider>
-          <Router>
-            <div className="min-h-screen bg-gray-50">
-              <NetworkStatusIndicator className="fixed top-0 left-0 right-0 z-50" />
-              <Routes>
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/login" element={<LoginForm />} />
-                <Route path="/register" element={<RegisterForm />} />
-                <Route path="/menu/:restaurantId" element={<PublicMenu />} />
-                <Route path="/unauthorized" element={<UnauthorizedPage />} />
+          <NotificationProvider>
+            <Router>
+              <div className="min-h-screen bg-gray-50">
+                <NetworkStatusIndicator className="fixed top-0 left-0 right-0 z-50" />
+                <Routes>
+                  <Route path="/" element={<LandingPage />} />
+                  <Route path="/login" element={<LoginForm />} />
+                  <Route path="/register" element={<RegisterForm />} />
+                  <Route path="/menu/:restaurantId" element={<PublicMenu />} />
+                  <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-                {/* Protected Routes */}
-                <Route
-                  path="/dashboard/*"
-                  element={
-                    <ProtectedRoute requiredRole="RESTAURANT_OWNER">
-                      <Dashboard />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/*"
-                  element={
-                    <ProtectedRoute requiredRole="SUPER_ADMIN">
-                      <AdminDashboard />
-                    </ProtectedRoute>
-                  }
-                />
-              </Routes>
-            </div>
-          </Router>
+                  {/* Protected Routes */}
+                  <Route
+                    path="/dashboard/*"
+                    element={
+                      <ProtectedRoute requiredRole="RESTAURANT_OWNER">
+                        <Dashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin/*"
+                    element={
+                      <ProtectedRoute requiredRole="SUPER_ADMIN">
+                        <AdminDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                </Routes>
+              </div>
+            </Router>
+          </NotificationProvider>
         </AuthProvider>
       </ToastProvider>
     </ErrorBoundary>

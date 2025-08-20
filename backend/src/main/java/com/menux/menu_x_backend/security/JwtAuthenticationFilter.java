@@ -35,9 +35,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String username = null;
         String jwt = null;
 
-        // Extract JWT token from Authorization header
+        // Extract JWT token from Authorization header first
         if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
             jwt = authorizationHeader.substring(7);
+        } else {
+            // Fallback: allow JWT via access_token query param (useful for SSE/EventSource)
+            String qpToken = request.getParameter("access_token");
+            if (qpToken != null && !qpToken.isBlank()) {
+                jwt = qpToken;
+            } else {
+                logger.debug("No Authorization header or access_token query param found");
+            }
+        }
+
+        // If we obtained a JWT (from header or query), extract username and optional restaurantId
+        if (jwt != null) {
             try {
                 username = jwtUtil.extractUsername(jwt);
                 logger.debug("Extracted username from JWT: " + username);
@@ -56,8 +68,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             } catch (Exception e) {
                 logger.error("Error extracting username from JWT token: " + e.getMessage());
             }
-        } else {
-            logger.debug("No Authorization header found or invalid format");
         }
 
         // Validate token and set authentication
