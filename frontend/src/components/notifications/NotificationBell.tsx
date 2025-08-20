@@ -447,7 +447,7 @@ export const NotificationBell: React.FC = () => {
 
       {/* Detail modal for a notification */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="sm:max-w-[640px]">
+        <DialogContent className="sm:max-w-[640px] max-h-[85vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <img src={getIconSrc(selected)} alt="icon" className="h-5 w-5 rounded" />
@@ -457,8 +457,8 @@ export const NotificationBell: React.FC = () => {
               {selected?.createdAt ? new Date(selected.createdAt).toLocaleString() : ''}
             </DialogDescription>
           </DialogHeader>
-          <div className="mt-2 space-y-4">
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">{selected?.body || ''}</p>
+          <div className="mt-2 space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+            <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{selected?.body || ''}</p>
             {/* Optional media preview */}
             {(() => {
               const imgSrc = getImageSrc(selected)

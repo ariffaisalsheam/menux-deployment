@@ -88,12 +88,19 @@ public class NotificationService {
             String body,
             String dataJson
     ) {
+        // Sanitize inputs to avoid DB constraint violations (e.g., title length)
+        String safeTitle = title == null ? "" : title.trim();
+        if (safeTitle.length() > 255) {
+            safeTitle = safeTitle.substring(0, 255);
+        }
+        String safeBody = body == null ? "" : body;
+
         Notification n = new Notification();
         n.setTargetUserId(targetUserId);
         n.setRestaurantId(restaurantId);
         n.setType(type);
-        n.setTitle(title);
-        n.setBody(body);
+        n.setTitle(safeTitle);
+        n.setBody(safeBody);
         n.setData(dataJson);
         n.setPriority(Notification.Priority.NORMAL);
         n.setStatus(Notification.Status.PENDING);

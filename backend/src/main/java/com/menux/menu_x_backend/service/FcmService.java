@@ -172,14 +172,14 @@ public class FcmService {
 
         // Web needs title/body in data for SW
         if (isWeb) {
-            data.put("title", n.getTitle() == null ? "" : n.getTitle());
-            data.put("body", n.getBody() == null ? "" : n.getBody());
+            data.put("title", truncate(n.getTitle(), 180));
+            data.put("body", truncate(n.getBody(), 900));
         }
 
         // Merge any custom data (e.g., url, image, icon, badge, click_action)
         Map<String, String> extra = extractStringMap(n.getData());
         if (extra != null && !extra.isEmpty()) {
-            data.putAll(extra);
+            data.putAll(capMapValues(extra, 900));
         }
 
         Message.Builder builder = Message.builder()
@@ -191,13 +191,38 @@ public class FcmService {
         if (!isWeb) {
             com.google.firebase.messaging.Notification notification = com.google.firebase.messaging.Notification
                     .builder()
-                    .setTitle(n.getTitle())
-                    .setBody(n.getBody())
+                    .setTitle(truncate(n.getTitle(), 180))
+                    .setBody(truncate(n.getBody(), 900))
                     .build();
             builder.setNotification(notification);
         }
 
         return builder.build();
+    }
+
+    private String truncate(String s, int maxLen) {
+        if (s == null) return "";
+        String v = s;
+        if (v.length() <= maxLen) return v;
+        if (maxLen <= 1) return v.substring(0, 1);
+        return v.substring(0, maxLen - 1) + "\u2026"; // ellipsis
+    }
+
+    private Map<String, String> capMapValues(Map<String, String> in, int maxLen) {
+        Map<String, String> out = new HashMap<>();
+        for (Map.Entry<String, String> e : in.entrySet()) {
+            String k = e.getKey();
+            String v = e.getValue();
+            if (k == null || v == null) continue;
+            // Preserve exact URL-like fields; do not truncate
+            if (k.equals("url") || k.equals("link") || k.equals("click_action") ||
+                k.equals("clickAction") || k.equals("targetUrl") || k.equals("deeplink")) {
+                out.put(k, v);
+            } else {
+                out.put(k, truncate(v, maxLen));
+            }
+        }
+        return out;
     }
 
     private Map<String, String> extractStringMap(String json) {
