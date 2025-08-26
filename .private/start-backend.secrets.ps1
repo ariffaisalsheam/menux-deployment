@@ -3,13 +3,13 @@
 # You can edit these any time.
 
 # Security
-$env:JWT_SECRET = 'dev-please-change-this-32+chars-secret-aaaaaaaaaaaa'
-$env:APP_ENCRYPTION_SECRET_KEY = 'dev-please-change-this-32-chars-key-aaaa'
+$env:JWT_SECRET = 'mySecretKey123456789012345678901234567890'
+$env:APP_ENCRYPTION_SECRET_KEY = 'mySecretKey123456789012345678901234567890'
 
 # Supabase Database (from notes)
 $env:SUPABASE_DATABASE_URL = 'jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require&preferQueryMode=simple'
 $env:SUPABASE_DATABASE_USERNAME = 'postgres.fxxbzrxcakzbbdvxocsu'
-$env:SUPABASE_DATABASE_PASSWORD = '007$he@M'
+$env:SUPABASE_DATABASE_PASSWORD = 'q6UUrIlYsYKlnNez'
 
 # Supabase Storage (media) – required for upload endpoints
 $env:SUPABASE_URL = 'https://fxxbzrxcakzbbdvxocsu.supabase.co'
