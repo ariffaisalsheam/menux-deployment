@@ -68,11 +68,15 @@ jobs:
           ssh -i key -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" "sudo systemctl restart '$SERVICE_NAME' && sudo systemctl status '$SERVICE_NAME' --no-pager || true"
           ssh -i key -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" "sudo journalctl -u '$SERVICE_NAME' -n 80 --no-pager || true"
 
-      - name: Health check API
+      - name: Health check API (on VM)
         run: |
-          for i in {1..20}; do
-            if curl -fsS "http://$VM_HOST:8080/api/public/settings" >/dev/null; then
-              echo "Health check passed"; exit 0; fi
-            echo "Waiting for app (attempt $i/20)"; sleep 3;
-          done
-          echo "Health check failed"; exit 1
+          : "${VM_SSH_PORT:=22}"
+          ssh -i key -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" '
+            set -e
+            PORT_VAL=$(grep -E "^PORT=" /home/fayaz.ewu/menux/backend/.env | cut -d= -f2 || echo 8080)
+            for i in $(seq 1 40); do
+              if curl -fsS "http://127.0.0.1:${PORT_VAL}/api/public/settings" >/dev/null; then
+                echo "Health check passed"; exit 0; fi
+              echo "Waiting for app (attempt $i/40)"; sleep 3;
+            done
+            echo "Health check failed"; exit 1'
