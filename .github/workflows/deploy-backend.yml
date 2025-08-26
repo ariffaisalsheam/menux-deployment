@@ -73,7 +73,12 @@ jobs:
           : "${VM_SSH_PORT:=22}"
           ssh -i key -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" '
             set -e
-            PORT_VAL=$(grep -E "^PORT=" /home/fayaz.ewu/menux/backend/.env | cut -d= -f2 || echo 8080)
+            ENV_FILE=/home/fayaz.ewu/menux/backend/.env
+            if [ -f "$ENV_FILE" ]; then
+              PORT_VAL=$(grep -E "^PORT=" "$ENV_FILE" | tail -n1 | cut -d= -f2 | tr -d "\r[:space:]")
+            fi
+            if ! echo "$PORT_VAL" | grep -Eq "^[0-9]{2,5}$"; then PORT_VAL=8080; fi
+            echo "Using PORT=$PORT_VAL for health check"
             for i in $(seq 1 40); do
               if curl -fsS "http://127.0.0.1:${PORT_VAL}/api/public/settings" >/dev/null; then
                 echo "Health check passed"; exit 0; fi
