@@ -34,6 +34,12 @@ jobs:
           java-version: '17'
           cache: 'maven'
 
+      - name: Prepare Maven wrapper (permissions + line endings)
+        run: |
+          cd backend
+          chmod +x mvnw
+          sed -i 's/\r$//' mvnw
+
       - name: Build backend (skip tests)
         run: |
           cd backend
