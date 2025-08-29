@@ -35,6 +35,7 @@ import static org.mockito.Mockito.verify;
 @ActiveProfiles("test")
 @TestPropertySource(properties = "spring.profiles.active=test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@SuppressWarnings("removal")
 class SubscriptionServiceTest {
 
     @Autowired

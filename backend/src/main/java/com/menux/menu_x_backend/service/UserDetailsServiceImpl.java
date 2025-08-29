@@ -2,7 +2,6 @@ package com.menux.menu_x_backend.service;
 
 import com.menux.menu_x_backend.entity.User;
 import com.menux.menu_x_backend.repository.UserRepository;
-import com.menux.menu_x_backend.service.RbacService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

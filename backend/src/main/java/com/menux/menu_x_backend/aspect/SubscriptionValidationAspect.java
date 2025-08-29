@@ -71,7 +71,7 @@ public class SubscriptionValidationAspect {
         }
         
         // Return appropriate error response based on return type
-        Class<?> returnType = joinPoint.getSignature().getDeclaringType();
+        //
         
         // If method returns ResponseEntity, return 403 Forbidden
         if (joinPoint.getSignature().toString().contains("ResponseEntity")) {

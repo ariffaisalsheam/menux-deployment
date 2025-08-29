@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 @SpringBootTest
 @ActiveProfiles("test")
 @TestPropertySource(properties = "spring.profiles.active=test")
+@SuppressWarnings("removal")
 class SubscriptionSchedulerTest {
 
     @Autowired

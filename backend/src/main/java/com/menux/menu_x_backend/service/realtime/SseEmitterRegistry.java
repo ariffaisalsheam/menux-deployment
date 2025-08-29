@@ -1,8 +1,6 @@
 package com.menux.menu_x_backend.service.realtime;
 
 import jakarta.annotation.PostConstruct;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -14,7 +12,6 @@ import java.util.concurrent.*;
 
 @Service
 public class SseEmitterRegistry {
-    private static final Logger log = LoggerFactory.getLogger(SseEmitterRegistry.class);
 
     private final Map<Long, CopyOnWriteArrayList<SseEmitter>> emitters = new ConcurrentHashMap<>();
 

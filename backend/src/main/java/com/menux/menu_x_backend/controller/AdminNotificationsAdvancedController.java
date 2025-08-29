@@ -262,19 +262,14 @@ public class AdminNotificationsAdvancedController {
     ) {
         String m = metric == null ? "sent" : metric.toLowerCase();
         String iv = (interval == null || interval.isBlank()) ? "day" : interval.toLowerCase();
-        ChronoUnit unit = switch (iv) {
-            case "hour" -> ChronoUnit.HOURS;
-            case "week" -> ChronoUnit.DAYS; // we'll bucket by 7-day steps
-            default -> ChronoUnit.DAYS;
-        };
-        int stepDays = iv.equals("week") ? 7 : (iv.equals("hour") ? 0 : 1);
+        // Determine bucketing implicitly below
         LocalDateTime[] range = parseRangeOrDefault(from, to, iv.equals("hour") ? 1 : 7);
-        LocalDateTime start = range[0];
-        LocalDateTime end = range[1];
+        LocalDateTime startAt = range[0];
+        LocalDateTime endAt = range[1];
 
-        List<Map<String, Object>> series = new ArrayList<>();
-        LocalDateTime cursor = start;
-        while (cursor.isBefore(end)) {
+        List<Map<String, Object>> dataSeries = new ArrayList<>();
+        LocalDateTime cursor = startAt;
+        while (cursor.isBefore(endAt)) {
             LocalDateTime bucketEnd;
             if (iv.equals("hour")) {
                 bucketEnd = cursor.plus(1, ChronoUnit.HOURS);
@@ -283,7 +278,7 @@ public class AdminNotificationsAdvancedController {
             } else {
                 bucketEnd = cursor.plusDays(1);
             }
-            if (bucketEnd.isAfter(end)) bucketEnd = end;
+            if (bucketEnd.isAfter(endAt)) bucketEnd = endAt;
 
             long value;
             if (m.equals("sent") || m.equals("delivered")) {
@@ -298,13 +293,13 @@ public class AdminNotificationsAdvancedController {
                 value = 0;
             }
 
-            series.add(Map.of(
+            dataSeries.add(Map.of(
                     "ts", cursor.toString(),
                     "value", value
             ));
             cursor = bucketEnd;
         }
-        return ResponseEntity.ok(series);
+        return ResponseEntity.ok(dataSeries);
     }
 
     // ===== Helpers =====

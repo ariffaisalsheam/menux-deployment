@@ -9,7 +9,6 @@ import com.menux.menu_x_backend.entity.User;
 import com.menux.menu_x_backend.repository.UserRepository;
 import com.menux.menu_x_backend.service.ProfileService;
 import com.menux.menu_x_backend.service.AdminService;
-import com.menux.menu_x_backend.entity.Restaurant;
 import com.menux.menu_x_backend.repository.RestaurantRepository;
 import com.menux.menu_x_backend.security.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;

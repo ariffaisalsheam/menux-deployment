@@ -46,13 +46,12 @@ public class SubscriptionService {
         RestaurantSubscription sub = new RestaurantSubscription();
         sub.setRestaurantId(restaurantId);
 
-        // Determine plan based on restaurant's current subscription plan
+        // Create subscription with PRO plan by default; status reflects current entitlement
         Optional<Restaurant> restaurant = restaurantRepository.findById(restaurantId);
+        sub.setPlan(RestaurantSubscription.Plan.PRO);
         if (restaurant.isPresent() && restaurant.get().getSubscriptionPlan() == Restaurant.SubscriptionPlan.PRO) {
-            sub.setPlan(RestaurantSubscription.Plan.PRO);
             sub.setStatus(RestaurantSubscription.Status.ACTIVE);
         } else {
-            sub.setPlan(RestaurantSubscription.Plan.BASIC);
             sub.setStatus(RestaurantSubscription.Status.EXPIRED);
         }
         sub = subscriptionRepository.save(sub);

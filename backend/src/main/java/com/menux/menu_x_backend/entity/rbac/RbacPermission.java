@@ -3,7 +3,6 @@ package com.menux.menu_x_backend.entity.rbac;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 
 @Entity
 @jakarta.persistence.Table(name = "rbac_permissions")

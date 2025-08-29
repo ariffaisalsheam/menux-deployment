@@ -1,7 +1,6 @@
 package com.menux.menu_x_backend.security;
 
 import org.springframework.http.server.ServerHttpRequest;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.support.DefaultHandshakeHandler;

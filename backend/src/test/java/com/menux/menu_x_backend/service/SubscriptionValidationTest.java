@@ -4,7 +4,6 @@ import com.menux.menu_x_backend.entity.Restaurant;
 import com.menux.menu_x_backend.entity.RestaurantSubscription;
 import com.menux.menu_x_backend.repository.RestaurantRepository;
 import com.menux.menu_x_backend.repository.RestaurantSubscriptionRepository;
-import com.menux.menu_x_backend.repository.RestaurantSubscriptionEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +25,7 @@ import static org.mockito.ArgumentMatchers.*;
 @ActiveProfiles("test")
 @TestPropertySource(properties = "spring.profiles.active=test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@SuppressWarnings("removal")
 class SubscriptionValidationTest {
 
     @Autowired
@@ -37,8 +37,6 @@ class SubscriptionValidationTest {
     @Autowired
     private RestaurantSubscriptionRepository subscriptionRepository;
 
-    @Autowired
-    private RestaurantSubscriptionEventRepository eventRepository;
 
     @MockBean
     private PlatformSettingService platformSettingService;
