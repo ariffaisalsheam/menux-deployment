@@ -79,6 +79,8 @@ jobs:
             fi
             if ! echo "$PORT_VAL" | grep -Eq "^[0-9]{2,5}$"; then PORT_VAL=8080; fi
             echo "Using PORT=$PORT_VAL for health check"
+            echo "Warmup: waiting 90s before starting health checks..."
+            sleep 90
             for i in $(seq 1 40); do
               if curl -fsS "http://127.0.0.1:${PORT_VAL}/api/public/settings" >/dev/null; then
                 echo "Health check passed"; exit 0; fi
