@@ -1,6 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Button } from '../ui/button'
-import { LoadingSpinner } from './LoadingSpinner'
 import { paymentsAPI, mediaAPI, mediaProxyUrl, publicSettingsAPI } from '../../services/api'
 import { useToast } from '../../contexts/ToastContext'
 import bkashSvg from '../../assets/bkash.svg'
@@ -103,7 +101,7 @@ export const ManualPaymentForm: React.FC<ManualPaymentFormProps> = ({
     
     setUploadBusy(true)
     try {
-      const resp = await mediaAPI.uploadFile(file)
+      const resp = await mediaAPI.uploadImage(file)
       setScreenshotPath(resp.path)
     } catch (e: any) {
       toastError(e?.message || 'Upload failed')

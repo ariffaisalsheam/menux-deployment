@@ -227,7 +227,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           console.warn('[WS] Max retries reached, falling back to SSE')
           // Fallback to SSE if available
           if (esRef.current === null) {
-            openEventSource()
+            openSse()
           }
         }
       }

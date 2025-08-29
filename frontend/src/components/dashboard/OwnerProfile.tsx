@@ -9,7 +9,7 @@ import { Label } from '../ui/label'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 import { LoadingSpinner } from '../common/LoadingSpinner'
 import { ErrorDisplay } from '../common/ErrorDisplay'
-import { profileAPI, mediaProxyUrl, subscriptionAPI, paymentsAPI, mediaAPI, publicSettingsAPI, type OwnerProfile as OwnerProfileDto, type UpdateOwnerProfileRequest, type UsernameAvailabilityResponse } from '../../services/api'
+import { profileAPI, mediaProxyUrl, subscriptionAPI, paymentsAPI, type OwnerProfile as OwnerProfileDto, type UpdateOwnerProfileRequest, type UsernameAvailabilityResponse } from '../../services/api'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs'
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../ui/dialog'
 import { useApi, useApiMutation } from '../../hooks/useApi'
@@ -485,7 +485,7 @@ const SubscriptionManagement: React.FC = () => {
       refetch()
       refetchEvents()
     } catch (err: any) {
-      toastError('Failed to cancel subscription', err?.message || 'Unknown error')
+      toastError(err?.message || 'Failed to cancel subscription')
     } finally {
       setCancelBusy(false)
     }
@@ -623,7 +623,6 @@ const SubscriptionManagement: React.FC = () => {
   }, [events])
   const isSuspended = (status?.status === 'SUSPENDED') || suspendedByEvents
   const hasUsedTrial = !!status?.trialStartAt
-  const hasTrialDays = (status?.trialDaysRemaining ?? 0) > 0
   const isCurrentlyIneligibleStatus = status?.status === 'TRIALING' || status?.status === 'ACTIVE'
 
   // Enhanced trial eligibility logic
