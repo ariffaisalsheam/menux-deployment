@@ -9,18 +9,23 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '../ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '../ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useAuth } from '../../contexts/AuthContext';
 import { SidebarTrigger } from '../ui/sidebar';
 import { NotificationBell } from '../notifications/NotificationBell';
+import { useNavigate } from 'react-router-dom';
+import { mediaProxyUrl } from '../../services/api';
 
 export const AdminHeader: React.FC = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
     window.location.href = '/';
   };
+
+  const photoUrl = user?.photoPath ? mediaProxyUrl(user.photoPath) : undefined;
 
   return (
     <header className="border-b bg-white px-6 py-4">
@@ -45,9 +50,13 @@ export const AdminHeader: React.FC = () => {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center gap-2">
                 <Avatar className="w-8 h-8">
-                  <AvatarFallback className="bg-red-100 text-red-600">
-                    {user?.fullName?.charAt(0) || 'A'}
-                  </AvatarFallback>
+                  {photoUrl ? (
+                    <AvatarImage src={photoUrl} alt={user?.fullName || 'Admin'} />
+                  ) : (
+                    <AvatarFallback className="bg-red-100 text-red-600">
+                      {user?.fullName?.charAt(0) || 'A'}
+                    </AvatarFallback>
+                  )}
                 </Avatar>
                 <div className="text-left">
                   <p className="text-sm font-medium">{user?.fullName || 'Admin'}</p>
@@ -56,7 +65,7 @@ export const AdminHeader: React.FC = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/admin/profile')}>
                 <User className="w-4 h-4 mr-2" />
                 Profile
               </DropdownMenuItem>

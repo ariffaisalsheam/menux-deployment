@@ -17,6 +17,7 @@ import { AdminSubscriptions } from '../components/admin/AdminSubscriptions';
 import { AdminApprovals } from '../components/admin/AdminApprovals';
 import { RBACDashboard } from '../components/admin/rbac/RBACDashboard';
 import { AdminAuditLogs } from '../components/admin/AdminAuditLogs';
+import { AdminProfile } from '../components/admin/AdminProfile';
 
 
 // Legacy redirect: /admin/subscriptions/:id -> /admin/restaurants/:id/subscription
@@ -48,6 +49,7 @@ const AdminDashboard: React.FC = () => {
         <Route path="settings" element={<PlatformSettings />} />
         <Route path="payments" element={<PaymentsReview />} />
         <Route path="approvals" element={<AdminApprovals />} />
+        <Route path="profile" element={<AdminProfile />} />
 
         <Route path="*" element={<Navigate to="." replace />} />
       </Routes>
