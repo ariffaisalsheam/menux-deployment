@@ -1,5 +1,5 @@
 import React from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Spinner } from '@/components/ui/spinner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,13 +12,14 @@ interface PlanProtectedRouteProps {
   fallbackComponent?: React.ReactNode
 }
 
-export default function PlanProtectedRoute({ 
-  children, 
-  requiredPlan, 
-  fallbackComponent 
+export default function PlanProtectedRoute({
+  children,
+  requiredPlan,
+  fallbackComponent
 }: PlanProtectedRouteProps) {
   const { isAuthenticated, user, isLoading } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
 
   if (isLoading) {
     return (
@@ -77,12 +78,9 @@ export default function PlanProtectedRoute({
               >
                 Go Back
               </Button>
-              <Button 
+              <Button
                 className="flex-1 bg-yellow-500 hover:bg-yellow-600"
-                onClick={() => {
-                  // Navigate to upgrade page or contact sales
-                  window.location.href = '/dashboard/profile#subscription'
-                }}
+                onClick={() => navigate('/dashboard/upgrade')}
               >
                 <Crown className="w-4 h-4 mr-2" />
                 Upgrade to Pro

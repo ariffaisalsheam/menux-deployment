@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Calendar, Search, Filter, Eye, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -26,6 +27,7 @@ interface Order {
 
 export const OrderHistory: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   // Fetch orders
   const {
@@ -140,7 +142,10 @@ export const OrderHistory: React.FC = () => {
                   Track orders from placement to completion with real-time updates
                 </p>
               </div>
-              <Button className="bg-blue-500 hover:bg-blue-600 text-white">
+              <Button
+                className="bg-blue-500 hover:bg-blue-600 text-white"
+                onClick={() => navigate('/dashboard/upgrade')}
+              >
                 Upgrade to Pro
               </Button>
             </div>

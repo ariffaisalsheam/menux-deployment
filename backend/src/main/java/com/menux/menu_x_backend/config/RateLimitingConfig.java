@@ -1,5 +1,9 @@
 package com.menux.menu_x_backend.config;
 
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -8,9 +12,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Rate limiting configuration to prevent API abuse
@@ -79,19 +80,34 @@ public class RateLimitingConfig {
         }
 
         private int getRateLimit(String endpoint) {
+            // Check if we're in development mode (more lenient limits)
+            boolean isDevelopment = isLocalDevelopment();
+
             if (endpoint.contains("/auth/register")) {
-                return 3; // 3 registration attempts per minute (reasonable for account creation)
+                return isDevelopment ? 10 : 3; // More lenient in dev
             } else if (endpoint.contains("/auth/login")) {
-                return 10; // 10 login attempts per minute (reasonable for login retries)
+                return isDevelopment ? 30 : 10; // More lenient in dev
             } else if (endpoint.contains("/auth/")) {
-                return 15; // 15 requests per minute for other auth endpoints
+                return isDevelopment ? 50 : 15; // More lenient in dev
             } else if (endpoint.contains("/ai/")) {
-                return 10; // 10 requests per minute for AI endpoints
+                return isDevelopment ? 30 : 10; // More lenient in dev
             } else if (endpoint.contains("/public/")) {
-                return 50; // 50 requests per minute for public endpoints
+                return isDevelopment ? 200 : 50; // More lenient in dev
+            } else if (endpoint.contains("/notifications/") || endpoint.contains("/admin/")) {
+                return isDevelopment ? 300 : 100; // Very lenient for admin/notifications in dev
             } else {
-                return 100; // 100 requests per minute for other endpoints
+                return isDevelopment ? 500 : 100; // Much more lenient in dev
             }
+        }
+
+        private boolean isLocalDevelopment() {
+            // Check if we're running in local development environment
+            String profile = System.getProperty("spring.profiles.active");
+            String port = System.getProperty("server.port", System.getenv("PORT"));
+
+            // Consider it development if running on default dev port or no specific profile
+            return (port != null && port.equals("8080")) ||
+                   (profile == null || profile.contains("dev") || profile.contains("local"));
         }
 
         // Group similar endpoints into buckets so each group has its own counter

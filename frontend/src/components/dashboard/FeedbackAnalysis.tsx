@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Crown, MessageSquare, Frown, Meh, Smile, Star, Brain } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -36,6 +37,7 @@ interface AIInsights {
 
 export const FeedbackAnalysis: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isPro = user?.subscriptionPlan === 'PRO';
 
   if (!isPro) {
@@ -99,7 +101,11 @@ export const FeedbackAnalysis: React.FC = () => {
             </div>
 
             <div className="text-center pt-4 border-t">
-              <Button size="lg" className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white">
+              <Button
+                size="lg"
+                className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white"
+                onClick={() => navigate('/dashboard/upgrade')}
+              >
                 <Crown className="w-4 h-4 mr-2" />
                 Upgrade to Pro - ৳1,500/month
               </Button>

@@ -25,7 +25,13 @@ export function getStoredFcmToken(): string | null {
 }
 
 function hasConfig(): boolean {
-  return !!(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.messagingSenderId && firebaseConfig.appId)
+  return !!(firebaseConfig.apiKey &&
+           firebaseConfig.projectId &&
+           firebaseConfig.messagingSenderId &&
+           firebaseConfig.appId &&
+           vapidKey &&
+           !firebaseConfig.apiKey.includes('placeholder') &&
+           !firebaseConfig.projectId.includes('placeholder'))
 }
 
 async function ensureServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | undefined> {

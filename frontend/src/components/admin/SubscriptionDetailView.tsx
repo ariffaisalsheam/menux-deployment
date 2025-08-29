@@ -60,6 +60,7 @@ export const SubscriptionDetailView: React.FC<SubscriptionDetailViewProps> = ({ 
   const [suspendReason, setSuspendReason] = useState<string>('')
   const [suspendBusy, setSuspendBusy] = useState<boolean>(false)
   const [unsuspendBusy, setUnsuspendBusy] = useState<boolean>(false)
+  const [cancelBusy, setCancelBusy] = useState<boolean>(false)
   // Optimistic UI for suspend toggle
   const [optimisticSuspended, setOptimisticSuspended] = useState<null | boolean>(null)
 
@@ -291,6 +292,23 @@ export const SubscriptionDetailView: React.FC<SubscriptionDetailViewProps> = ({ 
     }
   }
 
+  const onCancelSubscription = async () => {
+    setCancelBusy(true)
+    setError('')
+    try {
+      const updated = await adminSubscriptionAPI.cancel(restaurantId)
+      setSub(updated)
+      setLastUpdatedAt(new Date())
+      success('Subscription canceled successfully')
+      await loadAll()
+    } catch (e: any) {
+      setError(e?.message || 'Failed to cancel subscription')
+      toastError(e?.message || 'Failed to cancel subscription')
+    } finally {
+      setCancelBusy(false)
+    }
+  }
+
   const latestStateEvent = React.useMemo(() => {
     const candidates = events.filter(ev => {
       const t = (ev.eventType || '').toUpperCase()
@@ -355,6 +373,7 @@ export const SubscriptionDetailView: React.FC<SubscriptionDetailViewProps> = ({ 
 
   const canToggleSuspend = !confirmOpen && !suspendBusy && !suspendOpen
   const canActivate = !confirmOpen && !unsuspendBusy
+  const canCancelSubscription = !confirmOpen && !cancelBusy && sub?.status && ['ACTIVE', 'TRIALING', 'GRACE'].includes(sub.status) && !sub?.cancelAtPeriodEnd
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -473,7 +492,7 @@ export const SubscriptionDetailView: React.FC<SubscriptionDetailViewProps> = ({ 
                       )}
                     </div>
                   )}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {typeof sub?.trialDaysRemaining === 'number' && (sub?.trialDaysRemaining ?? -1) >= 0 && (
                       <div className="rounded-lg border p-3">
                         <div className="text-xs text-muted-foreground">Trial days remaining</div>
@@ -484,6 +503,12 @@ export const SubscriptionDetailView: React.FC<SubscriptionDetailViewProps> = ({ 
                       <div className="rounded-lg border p-3">
                         <div className="text-xs text-muted-foreground">Paid days remaining</div>
                         <div className="text-lg font-semibold">{sub?.paidDaysRemaining}</div>
+                      </div>
+                    )}
+                    {typeof (sub as any)?.graceDaysRemaining === 'number' && ((sub as any)?.graceDaysRemaining ?? -1) >= 0 && (
+                      <div className="rounded-lg border p-3 border-yellow-300 bg-yellow-50">
+                        <div className="text-xs text-muted-foreground">Grace days remaining</div>
+                        <div className="text-lg font-semibold text-yellow-700">{(sub as any)?.graceDaysRemaining}</div>
                       </div>
                     )}
                   </div>
@@ -607,6 +632,34 @@ export const SubscriptionDetailView: React.FC<SubscriptionDetailViewProps> = ({ 
                     </TooltipTrigger>
                     <TooltipContent>Suspend subscription and downgrade</TooltipContent>
                   </Tooltip>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Cancel Subscription</CardTitle>
+                <CardDescription>Cancel the subscription and set it to expire at the end of current period.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        variant="destructive"
+                        onClick={() => askConfirm('Cancel this subscription? It will expire at the end of the current period.', onCancelSubscription)}
+                        disabled={!canCancelSubscription}
+                      >
+                        {cancelBusy ? 'Canceling…' : 'Cancel Subscription'}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Cancel subscription - will expire at period end</TooltipContent>
+                </Tooltip>
+                {sub?.cancelAtPeriodEnd && (
+                  <div className="text-sm text-yellow-600 bg-yellow-50 p-2 rounded border">
+                    ⚠️ This subscription is set to cancel at the end of the current period.
+                  </div>
                 )}
               </CardContent>
             </Card>

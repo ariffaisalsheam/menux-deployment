@@ -559,6 +559,10 @@ export const paymentsAPI = {
     const response = await api.post('/payments/manual-bkash', payload)
     return response.data
   },
+  submitManualPayment: async (payload: ManualPaymentSubmitRequest): Promise<ManualPaymentDto> => {
+    const response = await api.post('/payments/manual-bkash', payload)
+    return response.data
+  },
   listMyPayments: async (): Promise<ManualPaymentDto[]> => {
     const response = await api.get('/payments/my')
     return response.data
@@ -617,7 +621,7 @@ export const adminApprovalsAPI = {
 export interface RestaurantSubscriptionDTO {
   id: number
   restaurantId: number
-  plan?: 'PRO' | 'BASIC' | null
+  plan?: 'BASIC' | 'PRO' | null
   status?: 'TRIALING' | 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'CANCELED' | 'SUSPENDED' | null
   trialStartAt?: string | null
   trialEndAt?: string | null
@@ -629,6 +633,7 @@ export interface RestaurantSubscriptionDTO {
   canceledAt?: string | null
   trialDaysRemaining?: number | null
   paidDaysRemaining?: number | null
+  graceDaysRemaining?: number | null
 }
 
 export interface RestaurantSubscriptionEventDTO {
@@ -650,6 +655,10 @@ export const subscriptionAPI = {
   },
   getEvents: async (): Promise<RestaurantSubscriptionEventDTO[]> => {
     const res = await api.get('/owner/subscription/events', { params: { _ts: Date.now() } })
+    return res.data
+  },
+  cancelSubscription: async (): Promise<RestaurantSubscriptionDTO> => {
+    const res = await api.post('/owner/subscription/cancel')
     return res.data
   }
 }
@@ -682,6 +691,10 @@ export const adminSubscriptionAPI = {
   },
   unsuspend: async (restaurantId: number): Promise<RestaurantSubscriptionDTO> => {
     const res = await api.post(`/admin/subscriptions/${restaurantId}/unsuspend`)
+    return res.data
+  },
+  cancel: async (restaurantId: number): Promise<RestaurantSubscriptionDTO> => {
+    const res = await api.post(`/admin/subscriptions/${restaurantId}/cancel`)
     return res.data
   },
   getEvents: async (restaurantId: number): Promise<RestaurantSubscriptionEventDTO[]> => {

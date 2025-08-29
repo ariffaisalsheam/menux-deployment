@@ -1,14 +1,23 @@
 package com.menux.menu_x_backend.entity;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 
 @Entity
 @jakarta.persistence.Table(name = "restaurant_subscriptions")
 public class RestaurantSubscription {
 
-    public enum Plan { PRO }
-    public enum Status { TRIALING, ACTIVE, GRACE, EXPIRED, CANCELED }
+    public enum Plan { BASIC, PRO }
+    public enum Status { TRIALING, ACTIVE, GRACE, EXPIRED, CANCELED, SUSPENDED }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,6 +45,9 @@ public class RestaurantSubscription {
 
     @Column(name = "current_period_end_at")
     private LocalDateTime currentPeriodEndAt;
+
+    @Column(name = "grace_end_at")
+    private LocalDateTime graceEndAt;
 
     @Column(name = "cancel_at_period_end", nullable = false)
     private Boolean cancelAtPeriodEnd = false;
@@ -83,6 +95,9 @@ public class RestaurantSubscription {
 
     public LocalDateTime getCurrentPeriodEndAt() { return currentPeriodEndAt; }
     public void setCurrentPeriodEndAt(LocalDateTime currentPeriodEndAt) { this.currentPeriodEndAt = currentPeriodEndAt; }
+
+    public LocalDateTime getGraceEndAt() { return graceEndAt; }
+    public void setGraceEndAt(LocalDateTime graceEndAt) { this.graceEndAt = graceEndAt; }
 
     public Boolean getCancelAtPeriodEnd() { return cancelAtPeriodEnd; }
     public void setCancelAtPeriodEnd(Boolean cancelAtPeriodEnd) { this.cancelAtPeriodEnd = cancelAtPeriodEnd; }

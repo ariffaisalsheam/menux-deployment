@@ -1,67 +1,224 @@
 ---
-type: "always_apply"
+type: "agent_requested"
+description: "Example description"
 ---
 
-Menu.X AI & Development Guidelines
-This document provides the official rules and best practices for developing the Menu.X application. Following these guidelines will ensure the project is secure, maintainable, and built to a professional standard.
+--# Menu.X AI Rules (AI Operating Guide)
 
-1. AI Integration Rules (Google Gemini)
-This section covers the rules for using the Google Gemini API for the "Pro" features in Menu.X.
+This document defines how AI agents and developers should operate within the Menu.X codebase, tools, and environments. It encodes security, coding, validation, API, MCP usage, and deployment rules to ensure safe and consistent changes.
 
-1.1. API Key Security is Critical
-NEVER write your Gemini API key directly in the code (e.g., in a .java or .tsx file).
+---
 
-Backend: The API key must be loaded from an environment variable. In the application.yml file, use the placeholder ${GEMINI_API_KEY}.
+## 1) Scope & Roles
 
-Frontend: For local testing, the key should be stored in the .env.local file, which is included in .gitignore and will not be committed to GitHub.
+- __Project__: Menu.X – digital restaurant platform for Bangladesh.
+- __Primary roles__: Diner (anon), Restaurant Owner, Super Admin.
+- __Repos/Dirs__:
+  - Backend (Spring Boot, Java 17): `backend/`
+  - Frontend (React + Vite + TS): `frontend/`
+  - Docs and scripts at repo root.
 
-1.2. Defined AI Features
-The AI will be used for two specific features available only to "Pro" subscribers:
+---
 
-AI Description Writer: Automatically generates creative and appealing descriptions for menu items.
+## 2) Tech Stack & Key Paths
 
-AI Feedback Analyzer: Analyzes customer feedback to provide sentiment analysis and actionable insights.
+- __Backend__: Spring Boot, PostgreSQL (H2 local), Flyway, Spring Security + JWT, Maven.
+  - Config: `backend/src/main/resources/application.yml`
+  - Controllers: `backend/src/main/java/com/menux/menu_x_backend/controller/`
+  - Services: `backend/src/main/java/com/menux/menu_x_backend/service/`
+  - Security: `backend/src/main/java/com/menux/menu_x_backend/config/SecurityConfig.java`
+- __Frontend__: React 19 + TS, Vite, Tailwind + shadcn/ui, axios, react-router.
+  - Services: `frontend/src/services/api.ts`
+  - Components: `frontend/src/components/`
+  - Pages: `frontend/src/pages/`
+- __Backends URLs__:
+  - Production backend base URL: https://menux-backend-api.onrender.com
 
-1.3. Standardized AI Prompts
-To ensure consistent and high-quality results from the Gemini API, use the following prompts when building the features.
+See `CODEBASE_INDEX.md` for a detailed backend index.
 
-For Menu Item Descriptions:
+---
 
-"You are an expert food writer for a restaurant menu. Generate a creative and appealing one-sentence description for the following menu item: [Menu Item Name]. The description should be brief, enticing, and make the customer want to order it."
+## 3) Security & Secrets
 
-For Feedback Analysis:
+- __Never__ commit secrets. Do not hardcode API keys; use environment variables.
+- Backend secrets come from the platform (Render) as environment variables, overriding `application.yml`.
+- Media service keys are server-side only; the frontend must never receive service keys.
+- Cursorily validate all inputs both client-side and server-side. Backend remains the source of truth.
+- Public endpoints: GET `/api/media/stream` is intentionally public for <img> usage.
 
-"You are an AI assistant for a restaurant manager. Analyze the following customer feedback and provide a one-sentence summary of the overall sentiment (Positive, Negative, or Neutral) and list the key points or suggestions mentioned by the customer. Feedback: '[Customer Feedback Text]'"
+---
 
-1.4. Error Handling
-Your backend code must gracefully handle situations where the Gemini API might be unavailable or return an error. The application should not crash. Instead, it should return a user-friendly message like, "The AI service is temporarily unavailable. Please try again later."
+## 4) API Contracts & Conventions
 
-2. General Development Best Practices
-2.1. Version Control (Git)
-Commit Frequently: Save your work with git commit often, after completing a small, logical change.
+- __AI Description Generation__
+  - Frontend: `aiAPI.generateDescription(itemName: string)`
+  - Backend: `AIController.generateMenuDescription` expects body `{ itemName }` and returns `{ description }`.
+- __Menu Items__
+  - Create via `menuAPI.createMenuItem(payload)`.
+  - Required fields: `name` (non-empty), `price` (number > 0), `category` (enum), `isAvailable` (boolean), optional `description`, `imageUrl` as storage path.
+- __Media__
+  - Upload: `POST /api/media/upload` (multipart). Returns `{ path, proxyUrl }`.
+  - Display: Use `mediaProxyUrl(path)` to render images via `/api/media/stream?path=...`.
+- __Errors__
+  - Prefer JSON error bodies with `error` or `message` fields. Show user-friendly messages on the frontend.
 
-Clear Commit Messages: Write clear messages that explain what you changed and why. (e.g., feat: Add user registration API endpoint).
+---
 
-Use Feature Branches: For new features, create a new branch (e.g., git checkout -b feature/user-login). This keeps your main branch clean and stable.
+## 5) Frontend Rules
 
-2.2. Configuration Management (Spring Boot)
-Use Profiles: Keep your local development and production configurations separate using application-dev.yml and application-prod.yml.
+- __Validation first__: Validate required fields on the client before calling backend APIs.
+  - In `AIMenuWriter.tsx`, block bulk save when any item has invalid `name`, `price`, or `category`.
+  - Show inline field errors and a clear validation summary banner.
+- __Forms__: Keep `price` as a string in inputs; convert to float only for payload.
+- __Images__: Store returned `path` in state; build preview using `mediaProxyUrl(path)`.
+- __Routing__: SPA rules via `vercel.json` catch-all to `/index.html`.
+- __UI/UX__: Use shadcn/ui components. Avoid blocking operations in UI threads; show progress states.
 
-Environment Variables for Secrets: All sensitive data (database passwords, API keys, JWT secrets) must be loaded from environment variables in the production profile.
+---
 
-2.3. API Design (Backend)
-Use a Layered Architecture: Structure your backend into Controller, Service, and Repository layers to keep your code organized.
+## 6) Backend Rules
 
-Use DTOs (Data Transfer Objects): Never expose your database entities directly in your API. Create separate DTO classes for API requests and responses to control exactly what data is sent and received.
+- __Validation__: Enforce DTO validation for create/update (e.g., price > 0, required fields). Return 400 with descriptive errors.
+- __Ownership & Auth__: Controllers must verify restaurant ownership for protected resources.
+- __Images__: When image URL changes or item deleted, ensure old storage objects are removed (implemented in `MenuController`).
+- __Media Security__: Service key usage remains server-side (e.g., `MediaStorageService`). Handle URL encoding correctly and consistently.
 
-Handle Errors Gracefully: Use a global exception handler (@ControllerAdvice) to provide clear and consistent error messages to the frontend.
+---
 
-2.4. Security (Backend)
-Handle Authentication in the Backend: Use Spring Security with JWT to manage user login, registration, and session management.
+## 7) AI Menu Builder Validation (Authoritative)
 
-Secure Endpoints: Use role-based security to protect your API endpoints. Ensure that only a Restaurant Owner can manage their menu and only a Super Admin can manage users.
+- Required per item before save:
+  - __Name__: non-empty string.
+  - __Price__: valid number > 0.
+  - __Category__: must be selected (use backend-defined categories).
+- __UI Behavior__:
+  - Field-level errors near each input.
+  - Validation summary banner when any item invalid; disable/block bulk save.
+  - Clear field error when the user edits the corresponding field.
+- __Payload mapping__:
+  - `price: parseFloat(priceString)` before calling backend.
 
-2.5. Styling (Frontend)
-Use Tailwind CSS: Use Tailwind's utility classes for all styling. This keeps your styling consistent and your CSS files small.
+---
 
-Use shadcn/ui for Components: For UI components like buttons, forms, and dialogs, use the npx shadcn-ui@latest add command to add them to your project. This gives you full control over their appearance and behavior. https://ui.shadcn.com/docs
+## 8) Media & Images
+
+- Upload through `mediaAPI.uploadImage(file, restaurantId)`.
+- Preview/display using `/api/media/stream?path=...` (no auth required for GET).
+- File checks: Enforce reasonable client-side validation (e.g., jpeg/png/webp).
+
+---
+
+## 9) MCP Servers & When to Use
+
+Available in this workspace: `supabase-mcp-server`, `sequential-thinking`, `puppeteer`, `mcp-playwright`.
+
+- __mcp-playwright__
+  - Purpose: UI navigation/smoke checks in a browser-like context.
+  - Examples: take screenshots, wait for text, click elements, type, select options, open/close tabs.
+  - Notes: Prefer non-destructive interactions; do not modify page content.
+- __puppeteer__
+  - Purpose: Scripted browser automation for DOM interactions.
+  - Examples: navigate, click, fill inputs, select dropdowns, evaluate JS, capture screenshots.
+  - Notes: Keep actions idempotent; avoid destructive flows unless explicitly requested.
+- __sequential-thinking__
+  - Purpose: Complex planning, iterative reasoning, and hypothesis revision before large edits.
+  - Examples: break down tasks, generate and verify solution hypotheses, revise steps as needed.
+  - Notes: Stop and reassess when new information contradicts prior assumptions.
+- __supabase-mcp-server__
+  - Purpose: Safe database visibility and controlled schema changes.
+  - Safe reads: list tables, list migrations, list extensions, get advisors (security/performance), execute read-only SQL.
+  - Migrations: apply DDL via migrations only; never hardcode generated IDs in data migrations; confirm intent before destructive ops.
+  - Runtime: fetch project URL/API URL and anon key when needed; deploy edge functions with explicit file lists and import maps.
+
+__General MCP rules__:
+- Prefer read-only or non-destructive actions first.
+- Clearly state why each tool is used and stop when dependent outputs are needed.
+- Do not perform bulk destructive operations. Seek confirmation for any irreversible change.
+
+---
+
+## 10) Commands & Safety (Local/CI)
+
+- Treat shell commands as potentially destructive; do not auto-run anything that installs, deletes, or mutates state without explicit approval.
+- For long-running dev servers, run non-blocking and stream output if needed; stop when not required.
+
+---
+
+## 11) Testing & QA
+
+- __Frontend__
+  - Validate error states appear correctly (inline + summary) before save.
+  - Confirm valid items save; invalid ones don’t trigger API calls.
+  - Verify images upload and preview correctly via `/api/media/stream`.
+- __Backend__
+  - Unit/service tests for validation and ownership checks.
+  - Ensure 400s include helpful messages.
+
+---
+
+## 12) Deployment Rules
+
+- __Backend (Render)__
+  - Dockerized Spring Boot. On push, Render builds with `backend/Dockerfile` and `pom.xml`.
+  - Environment variables configured in Render dashboard override `application.yml`.
+- __Frontend (Vercel)__
+  - Root for frontend: `frontend/`
+  - Build: `npm install` -> `tsc -b && vite build` -> deploy `dist/`.
+  - SPA routing: `frontend/vercel.json` routes to `/index.html` for client-side routing.
+
+---
+
+## 13) Performance & Resilience
+
+- Use retry/backoff for AI calls where appropriate; avoid hammering providers.
+- Avoid parallelizing requests that may hit rate limits; sequential where required (e.g., Generate All).
+- Keep payloads minimal; trim strings before submit.
+
+---
+
+## 14) Coding Standards
+
+- Keep imports at top; no mid-file import additions.
+- Keep edits minimal and contextual; include at least 3 lines of context when patching.
+- Avoid committing large binaries or generated artifacts.
+- Prefer small, focused PRs with clear summaries.
+
+---
+
+## 15) Error Handling & UX
+
+- Always display friendly, actionable messages to the user.
+- Log precise technical details to console/server logs; don’t expose internals to diners.
+- In AI flows, surface retry attempts and allow manual retry.
+
+---
+
+## 16) Documentation & Memories
+
+- Add/update README, `DEVELOPMENT_SETUP.md`, and `DEPLOYMENT.md` when workflows change.
+- Use workspace memories to store:
+  - Live endpoints and base URLs
+  - Deployment flows
+  - Key architectural constraints
+
+---
+
+## 17) What Not To Do
+
+- Always ask if you're confused about something
+- Don't pretent anything
+- Don’t save menu items with missing name/price/category.
+- Don’t expose Supabase service keys to the frontend.
+- Don’t bypass ownership checks.
+- Don’t push breaking schema changes without migrations and review.
+- Don’t auto-run destructive commands or apply DB migrations without confirmation.
+
+---
+
+## 18) Quick References
+
+- __AI__: `aiAPI.generateDescription(name)` -> `{ description }`.
+- __Media__: Upload -> `path`; display via `mediaProxyUrl(path)` -> `/api/media/stream?path=...`.
+- __Menu__: `menuAPI.createMenuItem({ name, description, price, category, isAvailable, imageUrl })`.
+
+This document should be kept up to date as the platform evolves. When in doubt, prioritize security, validation, and user experience.

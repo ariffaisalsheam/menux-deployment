@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Crown, Bell, AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -10,6 +11,7 @@ import { ensureFcmReadyAndRegister, getStoredFcmToken, removeWebFcmToken } from 
 
 export const NotificationCenter: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isPro = user?.subscriptionPlan === 'PRO';
 
   if (!isPro) {
@@ -79,7 +81,11 @@ export const NotificationCenter: React.FC = () => {
             </div>
 
             <div className="text-center pt-4 border-t">
-              <Button size="lg" className="bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white">
+              <Button
+                size="lg"
+                className="bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white"
+                onClick={() => navigate('/dashboard/upgrade')}
+              >
                 <Crown className="w-4 h-4 mr-2" />
                 Upgrade to Pro - ৳1,500/month
               </Button>

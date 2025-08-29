@@ -45,6 +45,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const wsRetryRef = useRef<number>(0)
   const wsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wsConnectedRef = useRef<boolean>(false)
+  const wsLastAttemptRef = useRef<number>(0)
+  const wsMaxRetries = 5 // Maximum retry attempts before giving up
 
   const API_BASE_URL = useMemo(() => (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8080/api', [])
   const WS_ENABLED = useMemo(() => {
@@ -153,6 +155,20 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     const openWs = () => {
+      // Check if we've exceeded max retries
+      if (wsRetryRef.current >= wsMaxRetries) {
+        console.warn('[WS] Max retry attempts reached, giving up')
+        return
+      }
+
+      // Prevent too frequent connection attempts (minimum 2 seconds between attempts)
+      const now = Date.now()
+      if (now - wsLastAttemptRef.current < 2000) {
+        console.warn('[WS] Connection attempt too soon, skipping')
+        return
+      }
+      wsLastAttemptRef.current = now
+
       // Derive host base from API_BASE_URL by removing trailing /api
       const restBase = (API_BASE_URL || '').replace(/\/$/, '')
       const hostBase = restBase.replace(/\/(api)$/, '')
@@ -168,8 +184,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       })
 
       client.onConnect = () => {
+        console.log('[WS] Connected successfully')
         setConnected(true)
-        wsRetryRef.current = 0
+        wsRetryRef.current = 0 // reset retry count on success
+        wsLastAttemptRef.current = 0 // reset attempt timer
         wsConnectedRef.current = true
         // If SSE fallback is open, close it to avoid duplicate events
         if (esRef.current) {
@@ -192,14 +210,26 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
 
       client.onWebSocketClose = () => {
+        console.log('[WS] Connection closed')
         setConnected(false)
         wsConnectedRef.current = false
-        // schedule reconnect or fallback to SSE if WS disabled
-        const nextDelay = Math.min(30000, 1000 * Math.pow(2, Math.min(wsRetryRef.current, 5)))
-        wsRetryRef.current += 1
-        wsTimeoutRef.current = setTimeout(() => {
-          if (WS_ENABLED) openWs()
-        }, nextDelay)
+
+        // Only retry if we haven't exceeded max retries
+        if (wsRetryRef.current < wsMaxRetries) {
+          // schedule reconnect with exponential backoff
+          const nextDelay = Math.min(30000, 1000 * Math.pow(2, Math.min(wsRetryRef.current, 5)))
+          wsRetryRef.current += 1
+          console.log(`[WS] Scheduling reconnect attempt ${wsRetryRef.current}/${wsMaxRetries} in ${nextDelay}ms`)
+          wsTimeoutRef.current = setTimeout(() => {
+            if (WS_ENABLED) openWs()
+          }, nextDelay)
+        } else {
+          console.warn('[WS] Max retries reached, falling back to SSE')
+          // Fallback to SSE if available
+          if (esRef.current === null) {
+            openEventSource()
+          }
+        }
       }
 
       client.onStompError = () => {

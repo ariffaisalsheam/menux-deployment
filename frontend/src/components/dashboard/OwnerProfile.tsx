@@ -17,6 +17,8 @@ import { Badge } from '../ui/badge'
 import { useToast } from '../../contexts/ToastContext'
 import { Crown, Clock, AlertTriangle, Trash2 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { ManualPaymentForm } from '../common/ManualPaymentForm'
+import { SubmissionsDisplay } from '../common/SubmissionsDisplay'
 
 const phoneRegex = /^[0-9+\-()\s]{6,20}$/
 const usernameRegex = /^[a-zA-Z0-9._-]{3,50}$/
@@ -465,6 +467,7 @@ const SubscriptionManagement: React.FC = () => {
   const { data: events = [], refetch: refetchEvents } = useApi(() => subscriptionAPI.getEvents())
   const { data: myPayments = [], refetch: refetchPayments } = useApi(() => paymentsAPI.listMyPayments())
   const { success, error: toastError } = useToast()
+  const [cancelBusy, setCancelBusy] = useState(false)
 
   const startTrialMut = useApiMutation(() => subscriptionAPI.startTrial(), {
     onSuccess: () => {
@@ -474,101 +477,25 @@ const SubscriptionManagement: React.FC = () => {
     }
   })
 
-  // Manual bKash renewal form
-  const MAX_UPLOAD_MB = 2
-  const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-  const formatBDT = (n?: number | null) =>
-    typeof n === 'number' && !isNaN(n)
-      ? new Intl.NumberFormat('en-BD', { style: 'currency', currency: 'BDT', maximumFractionDigits: 0 }).format(n)
-      : ''
-
-  const [minAmount, setMinAmount] = useState<number | null>(null)
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const s = await publicSettingsAPI.getSetting('PAYMENT_BKASH_MIN_AMOUNT')
-        if (s?.value) {
-          const parsed = parseFloat(s.value as any)
-          if (!isNaN(parsed)) setMinAmount(parsed)
-        }
-      } catch (_) {
-        // ignore missing/404; fall back to client-side >0 validation
-      }
-    })()
-  }, [])
-
-  const paySchemaBase = z.object({
-    amount: z.string().trim()
-      .min(1, 'Enter amount')
-      .refine((v) => {
-        const n = parseFloat(v as any)
-        return !isNaN(n) && n > 0
-      }, 'Enter a valid amount > 0'),
-    trxId: z.string().trim().min(4, 'Enter transaction ID'),
-    senderMsisdn: z.string().trim().min(8, 'Enter sender mobile number'),
-    screenshotFile: z
-      .instanceof(File)
-      .optional()
-      .refine(
-        (file) => !file || (file.size <= MAX_UPLOAD_MB * 1024 * 1024 && ACCEPTED_IMAGE_TYPES.includes(file.type)),
-        { message: `Image must be JPG/PNG/WebP and <= ${MAX_UPLOAD_MB}MB` }
-      ),
-  })
-
-  type PayFormValues = z.infer<typeof paySchemaBase>
-
-  const paySchemaDynamic = useMemo(() => paySchemaBase.superRefine((vals, ctx) => {
-    const n = parseFloat(vals.amount as any)
-    if (minAmount && !isNaN(n) && n < minAmount) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Minimum amount is ${formatBDT(minAmount)}`,
-        path: ['amount'],
-      })
-    }
-  }), [minAmount])
-
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue, watch } = useForm<PayFormValues>({
-    resolver: zodResolver(paySchemaDynamic),
-    defaultValues: { amount: '', trxId: '', senderMsisdn: '', screenshotFile: undefined as any }
-  })
-
-  const submitPayment = useApiMutation(async (payload: PayFormValues) => {
-    let screenshotPath: string | undefined
-    if (payload.screenshotFile) {
-      const uploaded = await mediaAPI.uploadImage(payload.screenshotFile as File)
-      screenshotPath = uploaded.path
-    }
-    const amt = parseFloat(payload.amount as any)
-    return paymentsAPI.submitManualBkash({ amount: amt, trxId: payload.trxId.trim(), senderMsisdn: payload.senderMsisdn.trim(), screenshotPath })
-  }, {
-    onSuccess: () => {
-      success('Payment submitted for review')
-      reset()
-      refetchPayments()
-    }
-  })
-
-  const onSubmitPay = async (vals: PayFormValues) => {
+  const onCancelSubscription = async () => {
+    setCancelBusy(true)
     try {
-      const amt = parseFloat(vals.amount as any)
-      if (minAmount && !isNaN(amt) && amt < minAmount) {
-        toastError(`Minimum amount is ${formatBDT(minAmount)}`)
-        return
-      }
-      await submitPayment.mutate(vals)
-    } catch (e: any) {
-      const msg =
-        (e?.response?.data?.message as string) ||
-        (e?.response?.data?.error as string) ||
-        (typeof e?.message === 'string' ? e.message : '') ||
-        'Failed to submit payment'
-      toastError(msg)
+      await subscriptionAPI.cancelSubscription()
+      success('Subscription canceled successfully. It will remain active until the end of your current period.')
+      refetch()
+      refetchEvents()
+    } catch (err: any) {
+      toastError('Failed to cancel subscription', err?.message || 'Unknown error')
+    } finally {
+      setCancelBusy(false)
     }
   }
 
-  const screenshotFile = watch('screenshotFile') as File | undefined
+
+
+
+
+
 
   // Bounded list sizes with progressive disclosure
   const [paymentsLimit, setPaymentsLimit] = useState(5)
@@ -614,6 +541,14 @@ const SubscriptionManagement: React.FC = () => {
     if (typeof paidDays === 'number' && paidDays > 0) {
       if (periodEnd && isFinite(periodEnd.getTime()) && periodEnd.getTime() > now) return periodEnd
       const synthetic = new Date(Date.now() + paidDays * 24 * 60 * 60 * 1000)
+      return synthetic
+    }
+
+    // 2.5) GRACE period if no paid period
+    const graceDays = (status as any)?.graceDaysRemaining as number | undefined
+    if (typeof graceDays === 'number' && graceDays > 0) {
+      if (graceEnd && isFinite(graceEnd.getTime()) && graceEnd.getTime() > now) return graceEnd
+      const synthetic = new Date(Date.now() + graceDays * 24 * 60 * 60 * 1000)
       return synthetic
     }
 
@@ -690,7 +625,19 @@ const SubscriptionManagement: React.FC = () => {
   const hasUsedTrial = !!status?.trialStartAt
   const hasTrialDays = (status?.trialDaysRemaining ?? 0) > 0
   const isCurrentlyIneligibleStatus = status?.status === 'TRIALING' || status?.status === 'ACTIVE'
-  const canStartTrial = !isSuspended && !isCurrentlyIneligibleStatus && hasTrialDays && !hasUsedTrial
+
+  // Enhanced trial eligibility logic
+  const canStartTrial = useMemo(() => {
+    if (!status) return false
+    if (isSuspended) return false
+    if (hasUsedTrial) return false
+    if (isCurrentlyIneligibleStatus) return false
+    if (status.cancelAtPeriodEnd) return false
+
+    // Only allow trial for new subscriptions or expired/canceled ones
+    const eligibleStatuses = ['EXPIRED', 'CANCELED', null, undefined]
+    return eligibleStatuses.includes(status.status)
+  }, [status, isSuspended, hasUsedTrial, isCurrentlyIneligibleStatus])
 
   const suspendReason = useMemo(() => {
     if (!isSuspended || !events || events.length === 0) return ''
@@ -802,6 +749,12 @@ const SubscriptionManagement: React.FC = () => {
                   <span className="font-medium">{status.paidDaysRemaining}</span>
                 </div>
               )}
+              {typeof (status as any).graceDaysRemaining === 'number' && (status as any).graceDaysRemaining >= 0 && (
+                <div>
+                  <span className="text-sm text-muted-foreground">Grace days remaining:</span>{' '}
+                  <span className="font-medium text-yellow-600">{(status as any).graceDaysRemaining}</span>
+                </div>
+              )}
               {status.currentPeriodEndAt && (
                 <div className="text-sm text-muted-foreground">Current Period Ends: {new Date(status.currentPeriodEndAt).toLocaleDateString()}</div>
               )}
@@ -830,50 +783,19 @@ const SubscriptionManagement: React.FC = () => {
               <p className="text-xs text-muted-foreground">Manual payments are reviewed by admin. Once approved, your paid days will increase automatically.</p>
             </div>
 
-            {/* Manual bKash Renewal Form */}
-            <div className="lg:col-span-2 border-t pt-4">
-              <h3 className="text-base font-semibold mb-2">Manual Renewal (bKash)</h3>
-              <form onSubmit={handleSubmit(onSubmitPay)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="amount">Amount (BDT)</Label>
-                  <Input id="amount" type="number" step="1" min={minAmount ?? undefined} {...register('amount')} />
-                  {errors.amount && <p className="text-sm text-destructive mt-1">{errors.amount.message as string}</p>}
-                  <div className="text-xs text-muted-foreground mt-1">{minAmount ? `Minimum ${formatBDT(minAmount)}` : 'Enter amount in BDT'}</div>
-                </div>
-                <div>
-                  <Label htmlFor="trxId">bKash TrxID</Label>
-                  <Input id="trxId" placeholder="e.g., 4F5G7H..." {...register('trxId')} />
-                  {errors.trxId && <p className="text-sm text-destructive mt-1">{errors.trxId.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="senderMsisdn">Sender Mobile</Label>
-                  <Input id="senderMsisdn" placeholder="e.g., 01XXXXXXXXX" {...register('senderMsisdn')} />
-                  {errors.senderMsisdn && <p className="text-sm text-destructive mt-1">{errors.senderMsisdn.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="screenshot">Payment Screenshot (optional)</Label>
-                  <Input
-                    id="screenshot"
-                    type="file"
-                    accept={ACCEPTED_IMAGE_TYPES.join(',')}
-                    onChange={(e) => setValue('screenshotFile', e.target.files?.[0] as any, { shouldValidate: true })}
-                  />
-                  {screenshotFile && (
-                    <div className="text-xs text-muted-foreground mt-1">Selected: {screenshotFile.name}</div>
-                  )}
-                  {errors.screenshotFile && (
-                    <p className="text-sm text-destructive mt-1">{errors.screenshotFile.message as string}</p>
-                  )}
-                  <div className="text-xs text-muted-foreground mt-1">Accepted: JPG, PNG, WebP • Max {MAX_UPLOAD_MB}MB</div>
-                </div>
-                <div className="md:col-span-2 flex items-center gap-2">
-                  <Button type="submit" disabled={isSubmitting || submitPayment.loading}>
-                    {isSubmitting || submitPayment.loading ? <LoadingSpinner size="sm" /> : 'Submit Payment'}
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => reset()} disabled={isSubmitting || submitPayment.loading}>Reset</Button>
-                </div>
-              </form>
+            {/* Manual bKash Renewal Form - Using reusable component */}
+            <div className="lg:col-span-2 border-t pt-6">
+              <ManualPaymentForm
+                title="Manual Subscription Renewal"
+                subtitle="Extend your subscription with a manual bKash payment"
+                onPaymentSubmitted={() => {
+                  refetch() // Refresh subscription status
+                  refetchPayments() // Refresh payments list
+                }}
+              />
             </div>
+
+
 
             {/* Payments & Events Tabs */}
             <div className="lg:col-span-2">
@@ -883,26 +805,13 @@ const SubscriptionManagement: React.FC = () => {
                   <TabsTrigger value="events">Subscription Events</TabsTrigger>
                 </TabsList>
                 <TabsContent value="payments" className="mt-3">
-                  <div className="space-y-2 max-h-64 overflow-auto pr-1">
-                    {(myPayments || []).length === 0 ? (
-                      <div className="text-sm text-muted-foreground">No payments submitted yet.</div>
-                    ) : (
-                      (myPayments || []).slice(0, paymentsLimit).map(p => (
-                        <div key={p.id} className="flex items-center justify-between border rounded p-3">
-                          <div className="text-sm">
-                            <div className="font-medium">BDT {p.amount} • {p.trxId}</div>
-                            <div className="text-muted-foreground">{new Date(p.createdAt).toLocaleString()} • {p.status}</div>
-                          </div>
-                          {p.status === 'PENDING' ? (
-                            <Badge variant="secondary">Pending</Badge>
-                          ) : p.status === 'APPROVED' ? (
-                            <Badge>Approved</Badge>
-                          ) : (
-                            <Badge variant="destructive">Rejected</Badge>
-                          )}
-                        </div>
-                      ))
-                    )}
+                  <div className="max-h-64 overflow-auto pr-1">
+                    <SubmissionsDisplay
+                      submissions={(myPayments || []).slice(0, paymentsLimit)}
+                      loading={false}
+                      title=""
+                      className="bg-transparent shadow-none p-0"
+                    />
                   </div>
                   {(myPayments || []).length > paymentsLimit && (
                     <div className="mt-2 flex gap-2">
@@ -945,6 +854,40 @@ const SubscriptionManagement: React.FC = () => {
             </div>
           </div>
         ) : null}
+
+        {/* Cancel Subscription Section */}
+        {status && ['ACTIVE', 'TRIALING', 'GRACE'].includes(status.status || '') && !status.cancelAtPeriodEnd && (
+          <div className="border-t pt-6 mt-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-red-800 mb-2">Cancel Subscription</h3>
+              <p className="text-sm text-red-700 mb-4">
+                Canceling your subscription will set it to expire at the end of your current billing period.
+                You'll continue to have access until then.
+              </p>
+              <Button
+                variant="destructive"
+                onClick={onCancelSubscription}
+                disabled={cancelBusy}
+                className="w-full sm:w-auto"
+              >
+                {cancelBusy ? 'Canceling...' : 'Cancel Subscription'}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Already Canceled Notice */}
+        {status?.cancelAtPeriodEnd && (
+          <div className="border-t pt-6 mt-6">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-yellow-800 mb-2">Subscription Canceled</h3>
+              <p className="text-sm text-yellow-700">
+                Your subscription is set to cancel at the end of the current period.
+                You'll continue to have access until {status.currentPeriodEndAt ? new Date(status.currentPeriodEndAt).toLocaleDateString() : 'the period ends'}.
+              </p>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

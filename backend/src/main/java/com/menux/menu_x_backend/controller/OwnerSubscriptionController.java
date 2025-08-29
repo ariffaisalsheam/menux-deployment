@@ -1,15 +1,19 @@
 package com.menux.menu_x_backend.controller;
 
-import com.menux.menu_x_backend.dto.subscription.RestaurantSubscriptionDTO;
-import com.menux.menu_x_backend.entity.RestaurantSubscription;
-import com.menux.menu_x_backend.dto.subscription.RestaurantSubscriptionEventDTO;
-import com.menux.menu_x_backend.repository.RestaurantSubscriptionEventRepository;
-import com.menux.menu_x_backend.service.RestaurantService;
-import com.menux.menu_x_backend.service.SubscriptionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.menux.menu_x_backend.dto.subscription.RestaurantSubscriptionDTO;
+import com.menux.menu_x_backend.dto.subscription.RestaurantSubscriptionEventDTO;
+import com.menux.menu_x_backend.entity.RestaurantSubscription;
+import com.menux.menu_x_backend.repository.RestaurantSubscriptionEventRepository;
+import com.menux.menu_x_backend.service.RestaurantService;
+import com.menux.menu_x_backend.service.SubscriptionService;
 
 @RestController
 @RequestMapping("/api/owner/subscription")
@@ -45,6 +49,21 @@ public class OwnerSubscriptionController {
         Long rid = optRid.get();
         try {
             RestaurantSubscription sub = subscriptionService.startTrial(rid);
+            return ResponseEntity.ok(RestaurantSubscriptionDTO.from(sub));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/cancel")
+    public ResponseEntity<?> cancel() {
+        var optRid = restaurantService.getCurrentUserRestaurantId();
+        if (optRid.isEmpty()) {
+            return ResponseEntity.status(404).body(java.util.Map.of("error", "No restaurant for current owner"));
+        }
+        Long rid = optRid.get();
+        try {
+            RestaurantSubscription sub = subscriptionService.cancelSubscription(rid);
             return ResponseEntity.ok(RestaurantSubscriptionDTO.from(sub));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));

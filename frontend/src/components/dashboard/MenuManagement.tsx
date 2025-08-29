@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, Search, Filter, Crown, ArrowUp, ArrowDown, LayoutGrid, Table as TableIcon, CheckSquare, Square } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -37,6 +38,7 @@ interface MenuItemFormData {
 
 export const MenuManagement: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -358,7 +360,10 @@ export const MenuManagement: React.FC = () => {
                   Save time and create mouth-watering descriptions that increase orders
                 </p>
               </div>
-              <Button className="bg-yellow-500 hover:bg-yellow-600 text-white">
+              <Button
+                className="bg-yellow-500 hover:bg-yellow-600 text-white"
+                onClick={() => navigate('/dashboard/upgrade')}
+              >
                 Upgrade to Pro
               </Button>
             </div>
