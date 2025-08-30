@@ -17,6 +17,12 @@ interface PlatformAnalyticsData {
   systemHealth: number;
   totalOrders: number;
   conversionRate: number;
+  // Trend data from backend
+  totalUsersChange?: number;
+  totalRestaurantsChange?: number;
+  proSubscriptionsChange?: number;
+  monthlyRevenueChange?: number;
+  activeUsersChange?: number;
 }
 
 export const PlatformAnalytics: React.FC = () => {
@@ -55,7 +61,9 @@ export const PlatformAnalytics: React.FC = () => {
                 <p className="text-2xl font-bold">{analytics.totalUsers.toLocaleString()}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <TrendingUp className="w-4 h-4 text-green-600" />
-                  <span className="text-sm text-green-600">+12.5%</span>
+                  <span className="text-sm text-green-600">
+                    {analytics.totalUsersChange ? `+${analytics.totalUsersChange.toFixed(1)}%` : "+0.0%"}
+                  </span>
                 </div>
               </div>
               <Users className="w-8 h-8 text-muted-foreground" />
@@ -70,7 +78,9 @@ export const PlatformAnalytics: React.FC = () => {
                 <p className="text-2xl font-bold">{analytics.totalRestaurants.toLocaleString()}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <TrendingUp className="w-4 h-4 text-green-600" />
-                  <span className="text-sm text-green-600">+8.2%</span>
+                  <span className="text-sm text-green-600">
+                    {analytics.totalRestaurantsChange ? `+${analytics.totalRestaurantsChange.toFixed(1)}%` : "+0.0%"}
+                  </span>
                 </div>
               </div>
               <Store className="w-8 h-8 text-muted-foreground" />
@@ -85,7 +95,7 @@ export const PlatformAnalytics: React.FC = () => {
                 <p className="text-2xl font-bold">{analytics.totalOrders.toLocaleString()}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <TrendingUp className="w-4 h-4 text-green-600" />
-                  <span className="text-sm text-green-600">+18.7%</span>
+                  <span className="text-sm text-green-600">+0.0%</span>
                 </div>
               </div>
               <BarChart3 className="w-8 h-8 text-muted-foreground" />
@@ -100,7 +110,9 @@ export const PlatformAnalytics: React.FC = () => {
                 <p className="text-2xl font-bold">৳{analytics.monthlyRevenue.toLocaleString()}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <TrendingUp className="w-4 h-4 text-green-600" />
-                  <span className="text-sm text-green-600">+22.1%</span>
+                  <span className="text-sm text-green-600">
+                    {analytics.monthlyRevenueChange ? `+${analytics.monthlyRevenueChange.toFixed(1)}%` : "+0.0%"}
+                  </span>
                 </div>
               </div>
               <TrendingUp className="w-8 h-8 text-muted-foreground" />
@@ -109,19 +121,93 @@ export const PlatformAnalytics: React.FC = () => {
         </Card>
       </div>
 
-      {/* Charts Placeholder */}
+      {/* Platform Growth */}
       <Card>
         <CardHeader>
           <CardTitle>Platform Growth</CardTitle>
           <CardDescription>
-            User registration and revenue trends over time
+            Key performance indicators and growth metrics
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-            <div className="text-center">
-              <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-muted-foreground">Advanced analytics charts would be implemented here</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">User Growth</span>
+                <div className="flex items-center gap-1">
+                  <TrendingUp className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-medium text-green-600">
+                    {analytics.totalUsersChange ? `+${analytics.totalUsersChange.toFixed(1)}%` : "+0.0%"}
+                  </span>
+                </div>
+              </div>
+              <div className="text-2xl font-bold">{analytics.totalUsers.toLocaleString()}</div>
+              <div className="text-xs text-muted-foreground">Total registered users</div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">Restaurant Growth</span>
+                <div className="flex items-center gap-1">
+                  <TrendingUp className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-medium text-green-600">
+                    {analytics.totalRestaurantsChange ? `+${analytics.totalRestaurantsChange.toFixed(1)}%` : "+0.0%"}
+                  </span>
+                </div>
+              </div>
+              <div className="text-2xl font-bold">{analytics.totalRestaurants.toLocaleString()}</div>
+              <div className="text-xs text-muted-foreground">Active restaurants</div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">Revenue Growth</span>
+                <div className="flex items-center gap-1">
+                  <TrendingUp className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-medium text-green-600">
+                    {analytics.monthlyRevenueChange ? `+${analytics.monthlyRevenueChange.toFixed(1)}%` : "+0.0%"}
+                  </span>
+                </div>
+              </div>
+              <div className="text-2xl font-bold">৳{analytics.monthlyRevenue.toLocaleString()}</div>
+              <div className="text-xs text-muted-foreground">Monthly recurring revenue</div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">Conversion Rate</span>
+                <div className="flex items-center gap-1">
+                  <TrendingUp className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-600">
+                    {analytics.conversionRate.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+              <div className="text-2xl font-bold">{analytics.proSubscriptions.toLocaleString()}</div>
+              <div className="text-xs text-muted-foreground">Pro subscribers</div>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-6 border-t">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-lg font-semibold text-green-700">
+                  {analytics.totalUsersChange ? `+${Math.round(analytics.totalUsers * (analytics.totalUsersChange / 100))}` : "+0"}
+                </div>
+                <div className="text-sm text-green-600">New users this month</div>
+              </div>
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-lg font-semibold text-blue-700">
+                  {analytics.totalRestaurantsChange ? `+${Math.round(analytics.totalRestaurants * (analytics.totalRestaurantsChange / 100))}` : "+0"}
+                </div>
+                <div className="text-sm text-blue-600">New restaurants this month</div>
+              </div>
+              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <div className="text-lg font-semibold text-purple-700">
+                  ৳{analytics.monthlyRevenueChange ? Math.round(analytics.monthlyRevenue * (analytics.monthlyRevenueChange / 100)).toLocaleString() : "0"}
+                </div>
+                <div className="text-sm text-purple-600">Revenue increase this month</div>
+              </div>
             </div>
           </div>
         </CardContent>

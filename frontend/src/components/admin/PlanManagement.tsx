@@ -19,6 +19,12 @@ interface PlatformAnalyticsData {
   systemHealth: number;
   totalOrders: number;
   conversionRate: number;
+  // Trend data from backend
+  totalUsersChange?: number;
+  totalRestaurantsChange?: number;
+  proSubscriptionsChange?: number;
+  monthlyRevenueChange?: number;
+  activeUsersChange?: number;
 }
 
 interface UserData {
