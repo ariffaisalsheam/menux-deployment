@@ -110,7 +110,9 @@ public class AdminNotificationsAdvancedController {
         // MVP: store empty filters
         s.setFilters(Map.of());
         if (payload.containsKey("estimatedCount")) {
-            try { s.setEstimatedCount(Integer.parseInt(String.valueOf(payload.get("estimatedCount")))); } catch (Exception ignore) {}
+            try { 
+                s.setEstimatedCount(parseInteger(payload.get("estimatedCount"))); 
+            } catch (NumberFormatException | NullPointerException ignore) {}
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(segmentRepository.save(s));
     }
@@ -122,7 +124,9 @@ public class AdminNotificationsAdvancedController {
             if (payload.containsKey("description")) s.setDescription(asStringOrNull(payload.get("description")));
             if (payload.containsKey("filters")) s.setFilters(Map.of()); // MVP
             if (payload.containsKey("estimatedCount")) {
-                try { s.setEstimatedCount(Integer.parseInt(String.valueOf(payload.get("estimatedCount")))); } catch (Exception ignore) {}
+                try { 
+                    s.setEstimatedCount(parseInteger(payload.get("estimatedCount"))); 
+                } catch (NumberFormatException | NullPointerException ignore) {}
             }
             return ResponseEntity.ok(segmentRepository.save(s));
         }).orElseGet(() -> notFound("Segment not found"));
@@ -271,26 +275,21 @@ public class AdminNotificationsAdvancedController {
         LocalDateTime cursor = startAt;
         while (cursor.isBefore(endAt)) {
             LocalDateTime bucketEnd;
-            if (iv.equals("hour")) {
-                bucketEnd = cursor.plus(1, ChronoUnit.HOURS);
-            } else if (iv.equals("week")) {
-                bucketEnd = cursor.plusDays(7);
-            } else {
-                bucketEnd = cursor.plusDays(1);
+            switch (iv) {
+                case "hour" -> bucketEnd = cursor.plus(1, ChronoUnit.HOURS);
+                case "week" -> bucketEnd = cursor.plusDays(7);
+                default -> bucketEnd = cursor.plusDays(1);
             }
             if (bucketEnd.isAfter(endAt)) bucketEnd = endAt;
 
             long value;
-            if (m.equals("sent") || m.equals("delivered")) {
-                value = deliveryAttemptRepository.countByStatusAndAttemptAtGreaterThanEqualAndAttemptAtLessThan(
+            switch (m) {
+                case "sent", "delivered" -> value = deliveryAttemptRepository.countByStatusAndAttemptAtGreaterThanEqualAndAttemptAtLessThan(
                         DeliveryAttempt.Status.SENT, cursor, bucketEnd);
-            } else if (m.equals("failed")) {
-                value = deliveryAttemptRepository.countByStatusAndAttemptAtGreaterThanEqualAndAttemptAtLessThan(
+                case "failed" -> value = deliveryAttemptRepository.countByStatusAndAttemptAtGreaterThanEqualAndAttemptAtLessThan(
                         DeliveryAttempt.Status.FAILED, cursor, bucketEnd);
-            } else if (m.equals("opened") || m.equals("clicked")) {
-                value = 0; // not tracked yet
-            } else {
-                value = 0;
+                case "opened", "clicked" -> value = 0; // not tracked yet
+                default -> value = 0;
             }
 
             dataSeries.add(Map.of(
@@ -321,19 +320,28 @@ public class AdminNotificationsAdvancedController {
 
     private static Long parseLong(Object v) {
         if (v == null) return null;
-        return Long.parseLong(String.valueOf(v));
+        if (v instanceof Number n) return n.longValue();
+        if (v instanceof String s) return Long.valueOf(s);
+        return Long.valueOf(v.toString());
+    }
+
+    private static Integer parseInteger(Object v) {
+        if (v == null) return null;
+        if (v instanceof Number n) return n.intValue();
+        if (v instanceof String s) return Integer.valueOf(s);
+        return Integer.valueOf(v.toString());
     }
 
     private static String asStringOrNull(Object v) {
         if (v == null) return null;
-        String s = String.valueOf(v);
+        String s = v.toString();
         return s.equalsIgnoreCase("null") ? null : s;
     }
 
     private static List<String> asStringList(Object v) {
         List<String> list = new ArrayList<>();
         if (v instanceof List<?> raw) {
-            for (Object o : raw) list.add(String.valueOf(o));
+            for (Object o : raw) list.add(o.toString());
         }
         return list;
     }

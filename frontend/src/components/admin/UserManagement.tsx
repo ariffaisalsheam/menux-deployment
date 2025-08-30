@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Edit, Trash2, Crown, User, Plus, MoreHorizontal } from 'lucide-react';
+import { Search, Filter, Edit, Trash2, Crown, User, Plus, MoreHorizontal, UserCheck, UserX, LogIn } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -10,8 +10,27 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '../ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
+import { Label } from '../ui/label';
 import { useAuth } from '../../contexts/AuthContext';
-import { userAPI } from '../../services/api';
+import { userAPI, type UpdateUserRequest } from '../../services/api';
 import { useApi, useApiMutation } from '../../hooks/useApi';
 import { LoadingSkeleton } from '../common/LoadingSpinner';
 import { ErrorDisplay } from '../common/ErrorDisplay';
@@ -21,7 +40,9 @@ interface UserData {
   username: string;
   email: string;
   fullName: string;
+  phoneNumber?: string;
   role: 'RESTAURANT_OWNER' | 'SUPER_ADMIN';
+  restaurantId?: number;
   restaurantName?: string;
   subscriptionPlan?: 'BASIC' | 'PRO';
   status: 'active' | 'inactive';
@@ -32,18 +53,41 @@ interface UserData {
 // ...removed unused mockUsers...
 
 export const UserManagement: React.FC = () => {
-  const { updateUserPlan, switchUserContext, user: currentUser } = useAuth();
+  const { switchUserContext } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [planFilter, setPlanFilter] = useState('all');
 
-  // Fetch users
+  // Edit user state
+  const [editingUser, setEditingUser] = useState<UserData | null>(null);
+  const [editForm, setEditForm] = useState<UpdateUserRequest>({});
+  const [showEditDialog, setShowEditDialog] = useState(false);
+
+  // Delete confirmation state
+  const [deletingUser, setDeletingUser] = useState<UserData | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // Fetch restaurant owners only
   const {
     data: users = [],
     loading,
     error,
     refetch
-  } = useApi<UserData[]>(() => userAPI.getAllUsers());
+  } = useApi<UserData[]>(() => userAPI.getRestaurantOwners());
+
+  // Update user mutation
+  const updateUserMutation = useApiMutation(
+    ({ userId, data }: { userId: number; data: UpdateUserRequest }) =>
+      userAPI.updateUser(userId, data),
+    {
+      onSuccess: () => {
+        refetch();
+        setShowEditDialog(false);
+        setEditingUser(null);
+        setEditForm({});
+      }
+    }
+  );
 
   // Update user plan mutation
   const updatePlanMutation = useApiMutation(
@@ -54,11 +98,31 @@ export const UserManagement: React.FC = () => {
     }
   );
 
+  // Activate user mutation
+  const activateUserMutation = useApiMutation(
+    (userId: number) => userAPI.activateUser(userId),
+    {
+      onSuccess: () => refetch()
+    }
+  );
+
+  // Deactivate user mutation
+  const deactivateUserMutation = useApiMutation(
+    (userId: number) => userAPI.deactivateUser(userId),
+    {
+      onSuccess: () => refetch()
+    }
+  );
+
   // Delete user mutation
   const deleteMutation = useApiMutation(
     (userId: number) => userAPI.deleteUser(userId),
     {
-      onSuccess: () => refetch()
+      onSuccess: () => {
+        refetch();
+        setShowDeleteDialog(false);
+        setDeletingUser(null);
+      }
     }
   );
 
@@ -72,41 +136,93 @@ export const UserManagement: React.FC = () => {
     return matchesSearch && matchesRole && matchesPlan;
   });
 
-  const handlePlanChange = async (userId: number, newPlan: 'BASIC' | 'PRO') => {
-    try {
-      await updatePlanMutation.mutate({ userId, plan: newPlan });
 
-      // If this is the current user, update the context
-  const user = safeUsers.find(u => u.id === userId);
-      if (user && currentUser && user.username === currentUser.username) {
-        updateUserPlan(newPlan);
+
+  const handleEditUser = (user: UserData) => {
+    setEditingUser(user);
+    setEditForm({
+      email: user.email,
+      fullName: user.fullName,
+      phoneNumber: user.phoneNumber,
+      isActive: user.status === 'active'
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleSaveUser = async () => {
+    if (!editingUser) return;
+
+    try {
+      await updateUserMutation.mutate({
+        userId: editingUser.id,
+        data: editForm
+      });
+    } catch (error) {
+      console.error('Failed to update user:', error);
+    }
+  };
+
+  const handleToggleUserStatus = async (user: UserData) => {
+    try {
+      if (user.status === 'active') {
+        await deactivateUserMutation.mutate(user.id);
+      } else {
+        await activateUserMutation.mutate(user.id);
       }
+    } catch (error) {
+      console.error('Failed to toggle user status:', error);
+    }
+  };
+
+  const handlePlanChange = async (userId: number, plan: 'BASIC' | 'PRO') => {
+    try {
+      await updatePlanMutation.mutate({ userId, plan });
     } catch (error) {
       console.error('Failed to update user plan:', error);
     }
   };
 
-  const handleSwitchToUser = (user: UserData) => {
+  const handleSwitchToUser = async (user: UserData) => {
     if (user.role === 'RESTAURANT_OWNER') {
-      const userData = {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role,
-        restaurantId: user.id,
-        restaurantName: user.restaurantName,
-        subscriptionPlan: user.subscriptionPlan
-      };
-      switchUserContext(userData);
-      // Navigate to restaurant dashboard
-      window.location.href = '/dashboard';
+      try {
+        // Call backend API to get proper JWT token for the user
+        const authResponse = await userAPI.switchToUser(user.id);
+
+        // Update auth context with the new token and user data
+        const userData = {
+          id: authResponse.id,
+          username: authResponse.username,
+          email: authResponse.email,
+          fullName: authResponse.fullName,
+          role: authResponse.role,
+          restaurantId: authResponse.restaurantId,
+          restaurantName: authResponse.restaurantName,
+          subscriptionPlan: authResponse.subscriptionPlan
+        };
+
+        // Switch user context with new token (this will save the current admin token)
+        switchUserContext(userData, authResponse.token);
+
+        // Navigate to restaurant dashboard
+        window.location.href = '/dashboard';
+      } catch (error) {
+        console.error('Failed to switch to user:', error);
+        // Show error message to user
+        alert('Failed to switch to user. Please try again.');
+      }
     }
   };
 
-  const handleDeleteUser = async (userId: number) => {
+  const handleDeleteUser = (user: UserData) => {
+    setDeletingUser(user);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deletingUser) return;
+
     try {
-      await deleteMutation.mutate(userId);
+      await deleteMutation.mutate(deletingUser.id);
     } catch (error) {
       console.error('Failed to delete user:', error);
     }
@@ -262,40 +378,63 @@ export const UserManagement: React.FC = () => {
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  {user.role === 'RESTAURANT_OWNER' && (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleSwitchToUser(user)}
-                      >
-                        Switch To User
-                      </Button>
-                      {user.subscriptionPlan && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button size="sm" variant="outline">
-                              <Crown className="w-4 h-4 mr-1" />
-                              Change Plan
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <DropdownMenuItem 
-                              onClick={() => handlePlanChange(user.id, 'BASIC')}
-                            >
-                              Switch to Basic
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handlePlanChange(user.id, 'PRO')}
-                            >
-                              Switch to Pro
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </>
+                  {/* Status Badge */}
+                  <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
+                    {user.status === 'active' ? 'Active' : 'Inactive'}
+                  </Badge>
+
+                  {/* Quick Actions */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleToggleUserStatus(user)}
+                    disabled={activateUserMutation.loading || deactivateUserMutation.loading}
+                  >
+                    {user.status === 'active' ? (
+                      <>
+                        <UserX className="w-4 h-4 mr-1" />
+                        Deactivate
+                      </>
+                    ) : (
+                      <>
+                        <UserCheck className="w-4 h-4 mr-1" />
+                        Activate
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleSwitchToUser(user)}
+                  >
+                    <LogIn className="w-4 h-4 mr-1" />
+                    Switch To User
+                  </Button>
+
+                  {user.subscriptionPlan && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline">
+                          <Crown className="w-4 h-4 mr-1" />
+                          Change Plan
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem
+                          onClick={() => handlePlanChange(user.id, 'BASIC')}
+                        >
+                          Switch to Basic
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handlePlanChange(user.id, 'PRO')}
+                        >
+                          Switch to Pro
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
-                  
+
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm">
@@ -303,12 +442,12 @@ export const UserManagement: React.FC = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleEditUser(user)}>
                         <Edit className="w-4 h-4 mr-2" />
                         Edit User
                       </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => handleDeleteUser(user.id)}
+                      <DropdownMenuItem
+                        onClick={() => handleDeleteUser(user)}
                         className="text-red-600"
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
@@ -322,6 +461,104 @@ export const UserManagement: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit User Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user information. Changes will be saved immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="fullName" className="text-right">
+                Full Name
+              </Label>
+              <Input
+                id="fullName"
+                value={editForm.fullName || ''}
+                onChange={(e) => setEditForm(prev => ({ ...prev, fullName: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">
+                Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={editForm.email || ''}
+                onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="phoneNumber" className="text-right">
+                Phone
+              </Label>
+              <Input
+                id="phoneNumber"
+                value={editForm.phoneNumber || ''}
+                onChange={(e) => setEditForm(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="isActive" className="text-right">
+                Status
+              </Label>
+              <div className="col-span-3">
+                <select
+                  id="isActive"
+                  value={editForm.isActive ? 'active' : 'inactive'}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, isActive: e.target.value === 'active' }))}
+                  className="w-full px-3 py-2 border rounded-md bg-background"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveUser}
+              disabled={updateUserMutation.loading}
+            >
+              {updateUserMutation.loading ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the user account for{' '}
+              <strong>{deletingUser?.fullName}</strong> and remove all associated data including their restaurant.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteUser}
+              disabled={deleteMutation.loading}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteMutation.loading ? 'Deleting...' : 'Delete User'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -1,264 +1,168 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { rbacAPI, type RbacRole, type RbacPermission } from '../../../services/api'
+import React, { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs'
-import { Card } from '../../ui/card'
-import { Button } from '../../ui/button'
-import { Input } from '../../ui/input'
-import { Label } from '../../ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table'
+import { Alert, AlertDescription, AlertTitle } from '../../ui/alert'
+import AdminUsersTab from './AdminUsersTab'
+import RolesPermissionsTab from './RolesPermissionsTab'
+import UserRoleAssignmentTab from './UserRoleAssignmentTab'
+import RBACSystemGuide from './RBACSystemGuide'
+import { PermissionGuard } from '../../../hooks/usePermissions'
+import {
+  Shield,
+  Users,
+  UserCog,
+  BookOpen,
+  CheckCircle,
+  AlertTriangle
+} from 'lucide-react'
 
 export const RBACDashboard: React.FC = () => {
-  const [roles, setRoles] = useState<RbacRole[]>([])
-  const [permissions, setPermissions] = useState<RbacPermission[]>([])
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  // Create role state
-  const [newRoleName, setNewRoleName] = useState('')
-  const [newRoleDesc, setNewRoleDesc] = useState('')
-
-  // Permissions tab state
-  const [selectedRoleId, setSelectedRoleId] = useState<string>('')
-  const [selectedPerms, setSelectedPerms] = useState<Record<string, boolean>>({})
-
-  // User Role Assignment state
-  const [userIdInput, setUserIdInput] = useState('')
-  const [assignRoleId, setAssignRoleId] = useState<string>('')
-
-  const loadAll = async () => {
-    setLoading(true)
+  const showSuccess = (message: string) => {
+    setSuccessMessage(message)
     setError(null)
-    try {
-      const [r, p] = await Promise.all([
-        rbacAPI.listRoles(),
-        rbacAPI.listPermissions()
-      ])
-      setRoles(r)
-      setPermissions(p)
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load RBAC data')
-    } finally {
-      setLoading(false)
-    }
+    setTimeout(() => setSuccessMessage(null), 3000)
   }
 
-  useEffect(() => {
-    loadAll()
-  }, [])
-
-  const selectedRole = useMemo(() => roles.find(r => String(r.id) === selectedRoleId) || null, [roles, selectedRoleId])
-
-  useEffect(() => {
-    if (selectedRole) {
-      const map: Record<string, boolean> = {}
-      selectedRole.permissions.forEach(k => { map[k] = true })
-      setSelectedPerms(map)
-    } else {
-      setSelectedPerms({})
-    }
-  }, [selectedRole])
-
-  const onCreateRole = async () => {
-    if (!newRoleName.trim()) return
-    try {
-      setLoading(true)
-      await rbacAPI.createRole({ name: newRoleName.trim(), description: newRoleDesc.trim() || undefined })
-      setNewRoleName('')
-      setNewRoleDesc('')
-      await loadAll()
-    } catch (e: any) {
-      setError(e?.message || 'Failed to create role')
-    } finally {
-      setLoading(false)
-    }
+  const showError = (message: string) => {
+    setError(message)
+    setSuccessMessage(null)
   }
 
-  const onDeleteRole = async (id: number) => {
-    if (!confirm('Delete this role?')) return
-    try {
-      setLoading(true)
-      await rbacAPI.deleteRole(id)
-      await loadAll()
-    } catch (e: any) {
-      setError(e?.message || 'Failed to delete role')
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  const togglePerm = (key: string) => {
-    setSelectedPerms(prev => ({ ...prev, [key]: !prev[key] }))
-  }
-
-  const onSaveRolePermissions = async () => {
-    if (!selectedRole) return
-    const keys = Object.keys(selectedPerms).filter(k => selectedPerms[k])
-    try {
-      setLoading(true)
-      await rbacAPI.setRolePermissions(selectedRole.id, keys)
-      await loadAll()
-    } catch (e: any) {
-      setError(e?.message || 'Failed to save permissions')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const onAssignRole = async () => {
-    const uid = parseInt(userIdInput)
-    const rid = parseInt(assignRoleId)
-    if (!uid || !rid) return
-    try {
-      setLoading(true)
-      await rbacAPI.assignRoleToUser(uid, rid)
-      alert('Role assigned')
-    } catch (e: any) {
-      setError(e?.message || 'Failed to assign role')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const onRevokeRole = async () => {
-    const uid = parseInt(userIdInput)
-    const rid = parseInt(assignRoleId)
-    if (!uid || !rid) return
-    try {
-      setLoading(true)
-      await rbacAPI.revokeRoleFromUser(uid, rid)
-      alert('Role revoked')
-    } catch (e: any) {
-      setError(e?.message || 'Failed to revoke role')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
-    <div className="p-4 space-y-4">
-      <h1 className="text-2xl font-semibold">RBAC Management</h1>
-      {error && <div className="text-red-600 text-sm">{error}</div>}
-
-      <Tabs defaultValue="roles" className="w-full">
-        <TabsList>
-          <TabsTrigger value="roles">Roles</TabsTrigger>
-          <TabsTrigger value="permissions">Permissions</TabsTrigger>
-          <TabsTrigger value="user-roles">User Roles</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="roles">
-          <div className="grid md:grid-cols-2 gap-4">
-            <Card className="p-4 space-y-3">
-              <h2 className="font-semibold">Create Role</h2>
-              <div className="space-y-2">
-                <div>
-                  <Label htmlFor="roleName">Name</Label>
-                  <Input id="roleName" value={newRoleName} onChange={e => setNewRoleName(e.target.value)} placeholder="e.g. SUPPORT_AGENT" />
-                </div>
-                <div>
-                  <Label htmlFor="roleDesc">Description</Label>
-                  <Input id="roleDesc" value={newRoleDesc} onChange={e => setNewRoleDesc(e.target.value)} placeholder="Optional" />
-                </div>
-                <Button onClick={onCreateRole} disabled={loading || !newRoleName.trim()}>Create Role</Button>
+    <div className="min-h-screen bg-gray-50/50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
+              <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg">
+                <Shield className="h-6 w-6 text-white" />
               </div>
-            </Card>
-
-            <Card className="p-4">
-              <h2 className="font-semibold mb-2">Existing Roles</h2>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Permissions</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {roles.map(r => (
-                    <TableRow key={r.id}>
-                      <TableCell>{r.id}</TableCell>
-                      <TableCell>{r.name}</TableCell>
-                      <TableCell>{r.description || '-'}</TableCell>
-                      <TableCell>{r.permissions?.length || 0}</TableCell>
-                      <TableCell>
-                        <Button variant="destructive" size="sm" onClick={() => onDeleteRole(r.id)} disabled={loading}>Delete</Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">RBAC Management</h1>
+                <p className="text-sm text-gray-600">Role-Based Access Control System</p>
+              </div>
+            </div>
           </div>
-        </TabsContent>
+        </div>
+      </div>
 
-        <TabsContent value="permissions">
-          <Card className="p-4 space-y-3">
-            <div className="grid md:grid-cols-3 gap-4 items-end">
-              <div>
-                <Label>Role</Label>
-                <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roles.map(r => (
-                      <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Button onClick={onSaveRolePermissions} disabled={!selectedRole || loading}>Save Permissions</Button>
-              </div>
-            </div>
+      {/* Status Messages */}
+      <div className="px-6 py-4">
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {successMessage && (
+          <Alert className="mb-4 border-green-200 bg-green-50">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertTitle className="text-green-800">Success</AlertTitle>
+            <AlertDescription className="text-green-700">{successMessage}</AlertDescription>
+          </Alert>
+        )}
+      </div>
 
-            {selectedRole ? (
-              <div className="grid md:grid-cols-3 gap-2 mt-4">
-                {permissions.map(p => (
-                  <label key={p.key} className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={!!selectedPerms[p.key]} onChange={() => togglePerm(p.key)} />
-                    <span className="font-mono">{p.key}</span>
-                  </label>
-                ))}
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground">Select a role to edit permissions.</div>
-            )}
-          </Card>
-        </TabsContent>
+      {/* Tabs */}
+      <div className="px-6 pb-6">
+        <Tabs defaultValue="admin-users" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4 bg-gray-100 p-1 rounded-lg">
+            <TabsTrigger value="admin-users" className="flex items-center gap-2">
+              <UserCog className="h-4 w-4" />
+              Admin Users
+            </TabsTrigger>
+            <TabsTrigger value="roles-permissions" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Roles & Permissions
+            </TabsTrigger>
+            <TabsTrigger value="user-assignment" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              User Assignment
+            </TabsTrigger>
+            <TabsTrigger value="guide" className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4" />
+              System Guide
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="user-roles">
-          <Card className="p-4 space-y-3">
-            <div className="grid md:grid-cols-3 gap-4 items-end">
-              <div>
-                <Label htmlFor="userId">User ID</Label>
-                <Input id="userId" value={userIdInput} onChange={e => setUserIdInput(e.target.value)} placeholder="e.g. 42" />
-              </div>
-              <div>
-                <Label>Role</Label>
-                <Select value={assignRoleId} onValueChange={setAssignRoleId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roles.map(r => (
-                      <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={onAssignRole} disabled={loading || !userIdInput || !assignRoleId}>Assign</Button>
-                <Button variant="secondary" onClick={onRevokeRole} disabled={loading || !userIdInput || !assignRoleId}>Revoke</Button>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">Tip: Use the User Management page to find user IDs.</p>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="admin-users">
+            <PermissionGuard
+              permission="MANAGE_USERS"
+              fallback={
+                <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="p-3 bg-yellow-100 rounded-full">
+                      <AlertTriangle className="h-8 w-8 text-yellow-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Access Restricted</h3>
+                      <p className="text-gray-600 max-w-md">
+                        You need the <code className="bg-gray-100 px-2 py-1 rounded text-sm">MANAGE_USERS</code> permission
+                        to access the Admin Users management interface.
+                      </p>
+                      <p className="text-sm text-gray-500 mt-2">
+                        Contact your system administrator to request access.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              }
+            >
+              <AdminUsersTab
+                onSuccess={showSuccess}
+                onError={showError}
+              />
+            </PermissionGuard>
+          </TabsContent>
+
+          <TabsContent value="roles-permissions">
+            <RolesPermissionsTab
+              onSuccess={showSuccess}
+              onError={showError}
+            />
+          </TabsContent>
+
+          <TabsContent value="user-assignment">
+            <PermissionGuard
+              permission="MANAGE_USERS"
+              fallback={
+                <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="p-3 bg-yellow-100 rounded-full">
+                      <AlertTriangle className="h-8 w-8 text-yellow-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Access Restricted</h3>
+                      <p className="text-gray-600 max-w-md">
+                        You need the <code className="bg-gray-100 px-2 py-1 rounded text-sm">MANAGE_USERS</code> permission
+                        to access the Admin Users management interface.
+                      </p>
+                      <p className="text-sm text-gray-500 mt-2">
+                        Contact your system administrator to request access.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              }
+            >
+              <UserRoleAssignmentTab
+                onSuccess={showSuccess}
+                onError={showError}
+              />
+            </PermissionGuard>
+          </TabsContent>
+
+          <TabsContent value="guide">
+            <RBACSystemGuide />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   )
 }

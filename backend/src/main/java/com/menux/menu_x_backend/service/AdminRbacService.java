@@ -1,19 +1,20 @@
 package com.menux.menu_x_backend.service;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.menux.menu_x_backend.entity.User;
 import com.menux.menu_x_backend.entity.rbac.RbacPermission;
 import com.menux.menu_x_backend.entity.rbac.RbacRole;
 import com.menux.menu_x_backend.repository.UserRepository;
 import com.menux.menu_x_backend.repository.rbac.RbacPermissionRepository;
 import com.menux.menu_x_backend.repository.rbac.RbacRoleRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 @Service
 public class AdminRbacService {
@@ -32,9 +33,14 @@ public class AdminRbacService {
 
     @Transactional(readOnly = true)
     public List<RbacPermission> listPermissions() {
-        List<RbacPermission> permissions = permissionRepository.findAll();
-        auditService.log("LIST_PERMISSIONS", "RBAC_PERMISSION", null, null);
-        return permissions;
+        // Read operations don't need audit logging
+        return permissionRepository.findAll();
+    }
+
+    // Test method without audit logging to isolate issues
+    @Transactional(readOnly = true)
+    public List<RbacPermission> listPermissionsWithoutAudit() {
+        return permissionRepository.findAll();
     }
 
     @Transactional
@@ -47,7 +53,8 @@ public class AdminRbacService {
 
     @Transactional(readOnly = true)
     public List<RbacRole> listRoles() {
-        return roleRepository.findAll();
+        // Read operations don't need audit logging
+        return roleRepository.findAllWithPermissions();
     }
 
     @Transactional
@@ -68,7 +75,7 @@ public class AdminRbacService {
 
     @Transactional
     public RbacRole setRolePermissions(Long roleId, List<String> permissionKeys) {
-        RbacRole role = roleRepository.findById(roleId).orElseThrow(() -> new IllegalArgumentException("Role not found"));
+        RbacRole role = roleRepository.findByIdWithPermissions(roleId).orElseThrow(() -> new IllegalArgumentException("Role not found"));
         List<RbacPermission> perms = permissionRepository.findAllById(permissionKeys);
         role.setPermissions(new HashSet<>(perms));
         RbacRole saved = roleRepository.save(role);
@@ -76,9 +83,14 @@ public class AdminRbacService {
         return saved;
     }
 
+    @Transactional(readOnly = true)
+    public List<RbacRole> getUserRoles(Long userId) {
+        return roleRepository.findByUsers_Id(userId);
+    }
+
     @Transactional
     public void assignRoleToUser(Long userId, Long roleId) {
-        RbacRole role = roleRepository.findById(roleId).orElseThrow(() -> new IllegalArgumentException("Role not found"));
+        RbacRole role = roleRepository.findByIdWithPermissions(roleId).orElseThrow(() -> new IllegalArgumentException("Role not found"));
         User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found"));
         Set<User> users = role.getUsers();
         if (users == null) users = new HashSet<>();
@@ -90,7 +102,7 @@ public class AdminRbacService {
 
     @Transactional
     public void removeRoleFromUser(Long userId, Long roleId) {
-        RbacRole role = roleRepository.findById(roleId).orElseThrow(() -> new IllegalArgumentException("Role not found"));
+        RbacRole role = roleRepository.findByIdWithPermissions(roleId).orElseThrow(() -> new IllegalArgumentException("Role not found"));
         Set<User> users = role.getUsers();
         if (users != null) {
             users.removeIf(u -> userId.equals(u.getId()));
@@ -102,7 +114,7 @@ public class AdminRbacService {
 
     @Transactional
     public RbacRole updateRole(Long roleId, String name, String description) {
-        RbacRole role = roleRepository.findById(roleId)
+        RbacRole role = roleRepository.findByIdWithPermissions(roleId)
                 .orElseThrow(() -> new IllegalArgumentException("Role not found"));
 
         boolean changed = false;

@@ -1,21 +1,27 @@
 package com.menux.menu_x_backend.security;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import java.io.IOException;
-import java.util.List;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -58,8 +64,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     Long restaurantId = jwtUtil.extractClaim(jwt, claims -> {
                         Object rid = claims.get("restaurantId");
                         if (rid == null) return null;
-                        if (rid instanceof Number) return ((Number) rid).longValue();
-                        try { return Long.parseLong(rid.toString()); } catch (NumberFormatException e) { return null; }
+                        if (rid instanceof Number number) return number.longValue();
+                        if (rid instanceof String str) {
+                            try { 
+                                long longValue = Long.parseLong(str);
+                                return longValue;
+                            } catch (NumberFormatException e) { 
+                                return null; 
+                            }
+                        }
+                        return null;
                     });
                     RestaurantContext.setRestaurantId(restaurantId);
                 } catch (Exception ignored) {
@@ -100,8 +114,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         SecurityContextHolder.getContext().setAuthentication(authToken);
                         logger.debug("Fallback authentication set for user: " + username);
                     }
+                } catch (UsernameNotFoundException userNotFound) {
+                    logger.warn("User not found during fallback authentication: " + username);
+                } catch (BadCredentialsException badCreds) {
+                    logger.warn("Invalid credentials during fallback authentication for user: " + username);
                 } catch (Exception fallbackException) {
-                    logger.error("Fallback authentication also failed for username: " + username + ", error: " + fallbackException.getMessage());
+                    logger.error("Fallback authentication failed for username: " + username, fallbackException);
                 }
             }
         }
@@ -122,6 +140,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // Extract role from JWT
             String role = jwtUtil.extractClaim(jwt, claims -> claims.get("role", String.class));
 
+            // Extract RBAC permissions from JWT if available
+            List<String> permissions = jwtUtil.extractClaim(jwt, claims -> {
+                Object permsObj = claims.get("permissions");
+                if (permsObj instanceof List<?> list) {
+                    return list.stream()
+                            .filter(String.class::isInstance)
+                            .map(String.class::cast)
+                            .collect(Collectors.toList());
+                }
+                return new ArrayList<>();
+            });
+
+            // Create authorities list with both role and permissions
+            List<GrantedAuthority> authorities = new ArrayList<>();
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+
+            // Add RBAC permissions as authorities
+            for (String permission : permissions) {
+                authorities.add(new SimpleGrantedAuthority("PERM_" + permission));
+            }
+
             // Create a simple UserDetails implementation
             return new org.springframework.security.core.userdetails.User(
                 username,
@@ -130,7 +169,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 true, // accountNonExpired
                 true, // credentialsNonExpired
                 true, // accountNonLocked
-                List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                authorities
             );
         } catch (Exception e) {
             logger.error("Error creating UserDetails from JWT for user: " + username, e);

@@ -1,5 +1,22 @@
 package com.menux.menu_x_backend.controller;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.menux.menu_x_backend.dto.rbac.CreatePermissionRequest;
 import com.menux.menu_x_backend.dto.rbac.CreateRoleRequest;
 import com.menux.menu_x_backend.dto.rbac.PermissionDTO;
@@ -8,32 +25,46 @@ import com.menux.menu_x_backend.dto.rbac.SetRolePermissionsRequest;
 import com.menux.menu_x_backend.entity.rbac.RbacPermission;
 import com.menux.menu_x_backend.entity.rbac.RbacRole;
 import com.menux.menu_x_backend.service.AdminRbacService;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin/rbac")
 @PreAuthorize("hasRole('SUPER_ADMIN') or hasAuthority('PERM_MANAGE_RBAC')")
 public class AdminRbacController {
 
+    private static final Logger logger = LoggerFactory.getLogger(AdminRbacController.class);
+
     @Autowired
     private AdminRbacService rbacService;
+
+    // Test endpoint to debug the issue (remove after fixing)
+    @GetMapping("/permissions/test")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<String> testPermissions() {
+        try {
+            List<RbacPermission> permissions = rbacService.listPermissionsWithoutAudit();
+            return ResponseEntity.ok("Found " + permissions.size() + " permissions: " +
+                permissions.stream().map(RbacPermission::getKey).collect(Collectors.joining(", ")));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error: " + e.getMessage());
+        }
+    }
 
     // Permissions
     @GetMapping("/permissions")
     public ResponseEntity<List<PermissionDTO>> listPermissions() {
-        List<PermissionDTO> dtos = rbacService.listPermissions()
-                .stream()
-                .map(p -> new PermissionDTO(p.getKey(), p.getDescription()))
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(dtos);
+        try {
+            List<PermissionDTO> dtos = rbacService.listPermissions()
+                    .stream()
+                    .map(p -> new PermissionDTO(p.getKey(), p.getDescription()))
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(dtos);
+        } catch (Exception e) {
+            logger.error("Error in listPermissions: {}", e.getMessage(), e);
+            throw e; // Re-throw to see the full stack trace
+        }
     }
 
     @PostMapping("/permissions")
@@ -82,6 +113,13 @@ public class AdminRbacController {
     }
 
     // User-role assignment
+    @GetMapping("/users/{userId}/roles")
+    public ResponseEntity<List<RoleDTO>> getUserRoles(@PathVariable Long userId) {
+        List<RbacRole> userRoles = rbacService.getUserRoles(userId);
+        List<RoleDTO> dtos = userRoles.stream().map(this::toRoleDTO).collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
+    }
+
     @PostMapping("/users/{userId}/roles/{roleId}")
     public ResponseEntity<Void> assignRoleToUser(@PathVariable Long userId, @PathVariable Long roleId) {
         rbacService.assignRoleToUser(userId, roleId);

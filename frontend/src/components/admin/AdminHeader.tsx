@@ -1,24 +1,47 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, Settings, LogOut, User } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from '../ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useAuth } from '../../contexts/AuthContext';
 import { SidebarTrigger } from '../ui/sidebar';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { useNavigate } from 'react-router-dom';
-import { mediaProxyUrl } from '../../services/api';
+import { mediaProxyUrl, adminUserAPI } from '../../services/api';
+import { getFormattedDisplayRole } from '../../utils/roleUtils';
 
 export const AdminHeader: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [displayRole, setDisplayRole] = useState<string>('Super Admin');
+
+  // Fetch admin user data to get RBAC roles
+  useEffect(() => {
+    const fetchAdminUser = async () => {
+      if (user?.id) {
+        try {
+          const adminUsersResponse = await adminUserAPI.listAdminUsers();
+          const currentAdminUser = adminUsersResponse.data.content.find((u: any) => u.id === user.id);
+          if (currentAdminUser) {
+            setDisplayRole(getFormattedDisplayRole(currentAdminUser));
+          }
+        } catch (error) {
+          console.error('Failed to fetch admin user data:', error);
+          // Fall back to default display
+          setDisplayRole('Super Admin');
+        }
+      }
+    };
+
+    fetchAdminUser();
+  }, [user?.id]);
 
   const handleLogout = () => {
     logout();
@@ -36,7 +59,7 @@ export const AdminHeader: React.FC = () => {
             <Shield className="w-6 h-6 text-red-600" />
             <h1 className="text-xl font-bold">Menu.X Admin</h1>
             <Badge variant="destructive" className="text-xs">
-              Super Admin
+              {displayRole}
             </Badge>
           </div>
         </div>

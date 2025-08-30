@@ -22,7 +22,7 @@ export interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   updateUserPlan: (plan: 'BASIC' | 'PRO') => void
-  switchUserContext: (userData: User) => void
+  switchUserContext: (userData: User, newToken: string) => void
   refreshUser: () => Promise<void>
   isAdmin: boolean
   originalAdminUser: User | null
@@ -49,12 +49,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [originalAdminUser, setOriginalAdminUser] = useState<User | null>(null)
+  const [originalAdminToken, setOriginalAdminToken] = useState<string | null>(null)
 
   useEffect(() => {
     // Check for stored authentication data on app load
     const storedToken = localStorage.getItem('token')
     const storedUser = localStorage.getItem('user')
     const storedAdminUser = localStorage.getItem('originalAdminUser')
+    const storedAdminToken = localStorage.getItem('originalAdminToken')
 
     if (storedToken && storedUser) {
       try {
@@ -67,9 +69,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           try {
             const parsedAdminUser = JSON.parse(storedAdminUser)
             setOriginalAdminUser(parsedAdminUser)
+            if (storedAdminToken) {
+              setOriginalAdminToken(storedAdminToken)
+            }
           } catch (adminError) {
             console.error('Error parsing admin user data:', adminError)
             localStorage.removeItem('originalAdminUser')
+            localStorage.removeItem('originalAdminToken')
           }
         }
       } catch (error) {
@@ -77,6 +83,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.removeItem('token')
         localStorage.removeItem('user')
         localStorage.removeItem('originalAdminUser')
+        localStorage.removeItem('originalAdminToken')
       }
     }
     setIsLoading(false)
@@ -110,9 +117,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setToken(null)
     setUser(null)
     setOriginalAdminUser(null)
+    setOriginalAdminToken(null)
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     localStorage.removeItem('originalAdminUser')
+    localStorage.removeItem('originalAdminToken')
   }
 
   const updateUserPlan = (plan: 'BASIC' | 'PRO') => {
@@ -125,23 +134,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
-  const switchUserContext = (userData: User) => {
-    // Save current admin user if not already saved
+  const switchUserContext = (userData: User, newToken: string) => {
+    // Save current admin user and token if not already saved
     if (user?.role === 'SUPER_ADMIN' && !originalAdminUser) {
       setOriginalAdminUser(user)
+      setOriginalAdminToken(token)
       localStorage.setItem('originalAdminUser', JSON.stringify(user))
+      localStorage.setItem('originalAdminToken', token || '')
     }
 
+    // Update to new user and token
     setUser(userData)
+    setToken(newToken)
     localStorage.setItem('user', JSON.stringify(userData))
+    localStorage.setItem('token', newToken)
   }
 
   const returnToAdmin = () => {
-    if (originalAdminUser) {
+    if (originalAdminUser && originalAdminToken) {
+      // Restore original admin user and token
       setUser(originalAdminUser)
+      setToken(originalAdminToken)
       setOriginalAdminUser(null)
+      setOriginalAdminToken(null)
+
+      // Update localStorage with original admin data
       localStorage.setItem('user', JSON.stringify(originalAdminUser))
+      localStorage.setItem('token', originalAdminToken)
       localStorage.removeItem('originalAdminUser')
+      localStorage.removeItem('originalAdminToken')
+
       // Navigate back to admin dashboard
       window.location.href = '/admin'
     }

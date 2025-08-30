@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 public class AuditLogDTO {
     public Long id;
     public Long actorId;
+    public String actorUsername;
     public String action;
     public String resourceType;
     public String resourceId;
@@ -15,10 +16,11 @@ public class AuditLogDTO {
 
     public AuditLogDTO() {}
 
-    public AuditLogDTO(Long id, Long actorId, String action, String resourceType, String resourceId,
+    public AuditLogDTO(Long id, Long actorId, String actorUsername, String action, String resourceType, String resourceId,
                        String metadata, String ip, String userAgent, LocalDateTime createdAt) {
         this.id = id;
         this.actorId = actorId;
+        this.actorUsername = actorUsername;
         this.action = action;
         this.resourceType = resourceType;
         this.resourceId = resourceId;

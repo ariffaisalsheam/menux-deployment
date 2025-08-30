@@ -143,8 +143,18 @@ export const userAPI = {
     return response.data
   },
 
+  getRestaurantOwners: async () => {
+    const response = await api.get('/admin/users/restaurant-owners')
+    return response.data
+  },
+
   getUserById: async (id: number) => {
     const response = await api.get(`/admin/users/${id}`)
+    return response.data
+  },
+
+  updateUser: async (userId: number, data: UpdateUserRequest) => {
+    const response = await api.put(`/admin/users/${userId}`, data)
     return response.data
   },
 
@@ -153,8 +163,23 @@ export const userAPI = {
     return response.data
   },
 
+  activateUser: async (userId: number) => {
+    const response = await api.post(`/admin/users/${userId}/activate`)
+    return response.data
+  },
+
+  deactivateUser: async (userId: number) => {
+    const response = await api.post(`/admin/users/${userId}/deactivate`)
+    return response.data
+  },
+
   deleteUser: async (userId: number) => {
     const response = await api.delete(`/admin/users/${userId}`)
+    return response.data
+  },
+
+  switchToUser: async (userId: number) => {
+    const response = await api.post(`/admin/users/${userId}/switch`)
     return response.data
   },
 
@@ -1136,48 +1161,59 @@ export const profileAPI = {
 }
 
 // RBAC (Super Admin)
-export interface RbacRole { id: number; name: string; description?: string | null; permissions: string[] }
+export interface RbacRole {
+  id: number;
+  name: string;
+  description?: string | null;
+  permissions: RbacPermission[];
+  users?: any[]; // Optional users array for role assignment tracking
+}
 export interface RbacPermission { key: string; description?: string | null }
 
-export const rbacAPI = {
-  listRoles: async (): Promise<RbacRole[]> => {
-    const res = await api.get('/admin/rbac/roles')
-    return res.data
-  },
-  createRole: async (payload: { name: string; description?: string; permissions?: string[] }): Promise<RbacRole> => {
-    const res = await api.post('/admin/rbac/roles', payload)
-    return res.data
-  },
-  updateRole: async (id: number, payload: { name?: string; description?: string; permissions?: string[] }): Promise<RbacRole> => {
-    const { name, description, permissions } = payload
-    // Update name/description first
-    let res = await api.put(`/admin/rbac/roles/${id}`, { name, description })
-    let role: RbacRole = res.data
-    // Optionally update permissions
-    if (permissions && Array.isArray(permissions)) {
-      res = await api.put(`/admin/rbac/roles/${id}/permissions`, { permissionKeys: permissions })
-      role = res.data
-    }
-    return role
-  },
-  deleteRole: async (id: number): Promise<void> => {
-    await api.delete(`/admin/rbac/roles/${id}`)
-  },
-  listPermissions: async (): Promise<RbacPermission[]> => {
-    const res = await api.get('/admin/rbac/permissions')
-    return res.data
-  },
-  setRolePermissions: async (id: number, permissionKeys: string[]): Promise<RbacRole> => {
-    const res = await api.put(`/admin/rbac/roles/${id}/permissions`, { permissionKeys })
-    return res.data
-  },
-  assignRoleToUser: async (userId: number, roleId: number): Promise<void> => {
-    await api.post(`/admin/rbac/users/${userId}/roles/${roleId}`)
-  },
-  revokeRoleFromUser: async (userId: number, roleId: number): Promise<void> => {
-    await api.delete(`/admin/rbac/users/${userId}/roles/${roleId}`)
-  },
+// Admin User Management Types
+export interface CreateAdminUserRequest {
+  username: string
+  password: string
+  confirmPassword: string
+  email?: string
+  fullName: string
+  phoneNumber?: string
+  roleIds: number[]
+  isActive?: boolean
 }
+
+export interface UpdateUserRequest {
+  email?: string
+  fullName?: string
+  phoneNumber?: string
+  isActive?: boolean
+}
+
+export interface UpdateAdminUserRequest {
+  email?: string
+  fullName?: string
+  phoneNumber?: string
+  roleIds?: number[]
+  isActive?: boolean
+  newPassword?: string
+  confirmNewPassword?: string
+}
+
+export interface AdminUserDTO {
+  id: number
+  username: string
+  email?: string
+  fullName: string
+  phoneNumber?: string
+  role: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+  rbacRoles: RbacRole[]
+  permissions: string[]
+}
+
+
 
 // Audit Logs (Super Admin)
 export interface AuditLogDto {
@@ -1201,6 +1237,15 @@ export const auditAPI = {
   get: async (id: number): Promise<AuditLogDto> => {
     const res = await api.get(`/admin/audit/${id}`)
     return res.data
+  },
+  deleteLog: async (id: number): Promise<void> => {
+    await api.delete(`/admin/audit/${id}`)
+  },
+  clearAllLogs: async (): Promise<void> => {
+    await api.delete('/admin/audit/clear-all')
+  },
+  clearLogsByCriteria: async (filters: { actorId?: number; action?: string; resourceType?: string; from?: string; to?: string }): Promise<void> => {
+    await api.delete('/admin/audit/clear-by-criteria', { params: filters })
   },
 }
 
@@ -1276,6 +1321,71 @@ export const paymentMethodsAPI = {
   setDefault: async (id: number): Promise<void> => {
     await api.post(`/owner/payment-methods/${id}/default`)
   },
+}
+
+// RBAC API
+export const rbacAPI = {
+  // Roles
+  listRoles: () => api.get('/admin/rbac/roles'),
+  createRole: (data: { name: string; description?: string }) => api.post('/admin/rbac/roles', data),
+  updateRole: (id: number, data: { name: string; description?: string }) => api.put(`/admin/rbac/roles/${id}`, data),
+  deleteRole: (id: number) => api.delete(`/admin/rbac/roles/${id}`),
+
+  // Permissions
+  listPermissions: () => api.get('/admin/rbac/permissions'),
+  createPermission: (data: { key: string; description?: string }) => api.post('/admin/rbac/permissions', data),
+  deletePermission: (key: string) => api.delete(`/admin/rbac/permissions/${key}`),
+
+  // Role-Permission assignments
+  getRolePermissions: (roleId: number) => api.get(`/admin/rbac/roles/${roleId}/permissions`),
+  assignPermissionsToRole: (roleId: number, permissionKeys: string[]) =>
+    api.post(`/admin/rbac/roles/${roleId}/permissions`, { permissionKeys }),
+  setRolePermissions: (roleId: number, data: { permissionKeys: string[] }) =>
+    api.put(`/admin/rbac/roles/${roleId}/permissions`, data),
+  removePermissionFromRole: (roleId: number, permissionKey: string) =>
+    api.delete(`/admin/rbac/roles/${roleId}/permissions/${permissionKey}`),
+
+  // User-Role assignments
+  getUserRoles: (userId: number) => api.get(`/admin/rbac/users/${userId}/roles`),
+  assignRoleToUser: (userId: number, roleId: number) =>
+    api.post(`/admin/rbac/users/${userId}/roles/${roleId}`),
+  removeRoleFromUser: (userId: number, roleId: number) =>
+    api.delete(`/admin/rbac/users/${userId}/roles/${roleId}`)
+}
+
+// Admin User Management API
+export const adminUserAPI = {
+  // List and search admin users
+  listAdminUsers: (params?: { page?: number; size?: number; sortBy?: string; sortDir?: string }) =>
+    api.get('/admin/admin-users', { params }),
+  searchAdminUsers: (searchTerm?: string) =>
+    api.get('/admin/admin-users/search', { params: { q: searchTerm } }),
+
+  // CRUD operations
+  getAdminUser: (userId: number) => api.get(`/admin/admin-users/${userId}`),
+  createAdminUser: (data: CreateAdminUserRequest) => api.post('/admin/admin-users', data),
+  updateAdminUser: (userId: number, data: UpdateAdminUserRequest) =>
+    api.put(`/admin/admin-users/${userId}`, data),
+  deleteAdminUser: (userId: number) => api.delete(`/admin/admin-users/${userId}`),
+
+  // Role management
+  assignRolesToUser: (userId: number, roleIds: number[]) =>
+    api.post(`/admin/admin-users/${userId}/roles`, roleIds),
+  updateUserRoles: (userId: number, roleIds: number[]) =>
+    api.put(`/admin/admin-users/${userId}/roles`, roleIds),
+  removeUserFromAllRoles: (userId: number) =>
+    api.delete(`/admin/admin-users/${userId}/roles`)
+}
+
+// Permission Checking API
+export const permissionAPI = {
+  getCurrentUserPermissions: () => api.get('/permissions/current'),
+  checkPermissions: (permissions: string[]) => api.post('/permissions/check', permissions),
+  checkPermission: (permission: string) => api.get(`/permissions/check/${permission}`),
+  getPermissionCategories: () => api.get('/permissions/categories'),
+  getUserPermissions: (userId: number) => api.get(`/permissions/user/${userId}`),
+  canManageUser: (userId: number) => api.get(`/permissions/can-manage/${userId}`),
+  getAdminStatus: () => api.get('/permissions/admin-status')
 }
 
 export default api

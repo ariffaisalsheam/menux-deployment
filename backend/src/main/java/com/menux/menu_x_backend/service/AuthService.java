@@ -1,13 +1,9 @@
 package com.menux.menu_x_backend.service;
 
-import com.menux.menu_x_backend.dto.auth.AuthResponse;
-import com.menux.menu_x_backend.dto.auth.LoginRequest;
-import com.menux.menu_x_backend.dto.auth.RegisterRequest;
-import com.menux.menu_x_backend.entity.Restaurant;
-import com.menux.menu_x_backend.entity.User;
-import com.menux.menu_x_backend.repository.RestaurantRepository;
-import com.menux.menu_x_backend.repository.UserRepository;
-import com.menux.menu_x_backend.security.JwtUtil;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -16,9 +12,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import com.menux.menu_x_backend.dto.auth.AuthResponse;
+import com.menux.menu_x_backend.dto.auth.LoginRequest;
+import com.menux.menu_x_backend.dto.auth.RegisterRequest;
+import com.menux.menu_x_backend.entity.Restaurant;
+import com.menux.menu_x_backend.entity.User;
+import com.menux.menu_x_backend.repository.RestaurantRepository;
+import com.menux.menu_x_backend.repository.UserRepository;
+import com.menux.menu_x_backend.security.JwtUtil;
 
 @Service
 public class AuthService {
@@ -37,6 +38,9 @@ public class AuthService {
 
     @Autowired
     private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private RbacService rbacService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -90,6 +94,15 @@ public class AuthService {
             extraClaims.put("restaurantId", restaurant.getId());
         }
 
+        // Add RBAC permissions to JWT token
+        var rbacPermissions = rbacService.getUserPermissionAuthorities(user.getId());
+        var permissionKeys = rbacPermissions.stream()
+                .map(auth -> auth.getAuthority())
+                .filter(perm -> perm.startsWith("PERM_")) // Only include RBAC permissions
+                .map(perm -> perm.replace("PERM_", "")) // Remove PERM_ prefix
+                .collect(java.util.stream.Collectors.toList());
+        extraClaims.put("permissions", permissionKeys);
+
         String token = jwtUtil.generateToken(user, extraClaims);
 
         return new AuthResponse(
@@ -137,6 +150,16 @@ public class AuthService {
         if (restaurantId != null) {
             extraClaims.put("restaurantId", restaurantId);
         }
+
+        // Add RBAC permissions to JWT token
+        var rbacPermissions = rbacService.getUserPermissionAuthorities(user.getId());
+        var permissionKeys = rbacPermissions.stream()
+                .map(auth -> auth.getAuthority())
+                .filter(perm -> perm.startsWith("PERM_")) // Only include RBAC permissions
+                .map(perm -> perm.replace("PERM_", "")) // Remove PERM_ prefix
+                .collect(java.util.stream.Collectors.toList());
+        extraClaims.put("permissions", permissionKeys);
+
         String token = jwtUtil.generateToken(user, extraClaims);
 
         return new AuthResponse(

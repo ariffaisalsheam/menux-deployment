@@ -1,18 +1,20 @@
 package com.menux.menu_x_backend.config;
 
-import com.menux.menu_x_backend.entity.Restaurant;
-import com.menux.menu_x_backend.entity.User;
-import com.menux.menu_x_backend.repository.RestaurantRepository;
-import com.menux.menu_x_backend.repository.UserRepository;
+import java.util.Optional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
 
-import java.util.Optional;
+import com.menux.menu_x_backend.entity.Restaurant;
+import com.menux.menu_x_backend.entity.User;
+import com.menux.menu_x_backend.repository.RestaurantRepository;
+import com.menux.menu_x_backend.repository.UserRepository;
 
-// @Component - Disabled for development to prevent startup errors
+@Component
 public class DataInitializer implements CommandLineRunner {
 
     private static final Logger logger = LoggerFactory.getLogger(DataInitializer.class);
@@ -25,6 +27,9 @@ public class DataInitializer implements CommandLineRunner {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private com.menux.menu_x_backend.repository.rbac.RbacRoleRepository rbacRoleRepository;
 
     @Override
     public void run(String... args) throws Exception {
@@ -95,7 +100,28 @@ public class DataInitializer implements CommandLineRunner {
             adminUser.setPhoneNumber("+8801234567891");
             adminUser.setRole(User.Role.SUPER_ADMIN);
 
-            userRepository.save(adminUser);
+            adminUser = userRepository.save(adminUser);
+
+            // Assign SUPER_ADMIN_RBAC role to give the user actual permissions
+            try {
+                java.util.Optional<com.menux.menu_x_backend.entity.rbac.RbacRole> superAdminRole =
+                    rbacRoleRepository.findByName("SUPER_ADMIN_RBAC");
+
+                if (superAdminRole.isPresent()) {
+                    com.menux.menu_x_backend.entity.rbac.RbacRole role = superAdminRole.get();
+                    java.util.Set<User> users = role.getUsers();
+                    if (users == null) users = new java.util.HashSet<>();
+                    users.add(adminUser);
+                    role.setUsers(users);
+                    rbacRoleRepository.save(role);
+
+                    logger.info("Assigned SUPER_ADMIN_RBAC role to admin user");
+                } else {
+                    logger.warn("SUPER_ADMIN_RBAC role not found - admin user will not have RBAC permissions");
+                }
+            } catch (Exception e) {
+                logger.error("Failed to assign SUPER_ADMIN_RBAC role to admin user: " + e.getMessage());
+            }
 
             logger.info("Super Admin created:");
             logger.info("Username: admin");

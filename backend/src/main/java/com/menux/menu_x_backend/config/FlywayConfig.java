@@ -2,8 +2,8 @@ package com.menux.menu_x_backend.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -25,7 +25,7 @@ public class FlywayConfig {
                 try {
                     flyway.repair();
                     log.info("Flyway repair executed successfully.");
-                } catch (Exception e) {
+                } catch (RuntimeException e) {
                     log.warn("Flyway repair encountered an issue: {}", e.getMessage());
                 }
             } else {

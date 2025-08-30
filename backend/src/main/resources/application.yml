@@ -11,9 +11,9 @@ spring:
     activate:
       on-profile: supabase
   datasource:
-    url: ${SUPABASE_DATABASE_URL}
-    username: ${SUPABASE_DATABASE_USERNAME}
-    password: ${SUPABASE_DATABASE_PASSWORD}
+    url: ${SUPABASE_DATABASE_URL:jdbc:postgresql://localhost:5432/menux_db}
+    username: ${SUPABASE_DATABASE_USERNAME:postgres}
+    password: ${SUPABASE_DATABASE_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
     # HikariCP connection pool configuration for Supabase
     hikari:
@@ -81,7 +81,7 @@ spring:
       max-request-size: 2MB
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:mySecretKey123456789012345678901234567890}
   expiration: ${JWT_EXPIRATION:86400000}
 
 app:
@@ -95,8 +95,8 @@ app:
     url: ${APP_FRONTEND_URL:http://localhost:5173}
   media:
     supabase:
-      url: ${SUPABASE_URL}
-      service-key: ${SUPABASE_SERVICE_KEY}
+      url: ${SUPABASE_URL:https://test.supabase.co}
+      service-key: ${SUPABASE_SERVICE_KEY:test-service-key}
       bucket: ${SUPABASE_STORAGE_BUCKET:menu-images}
   notifications:
     features:

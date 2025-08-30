@@ -4,10 +4,17 @@ import com.menux.menu_x_backend.dto.admin.UserManagementDTO;
 import com.menux.menu_x_backend.dto.admin.RestaurantManagementDTO;
 import com.menux.menu_x_backend.dto.admin.PlatformAnalyticsDTO;
 import com.menux.menu_x_backend.dto.admin.UpdateUserPlanRequest;
+import com.menux.menu_x_backend.dto.admin.UpdateUserRequest;
 import com.menux.menu_x_backend.service.AdminService;
+import com.menux.menu_x_backend.service.AdminRbacService;
 import com.menux.menu_x_backend.service.NotificationService;
+import com.menux.menu_x_backend.entity.rbac.RbacRole;
+import com.menux.menu_x_backend.entity.rbac.RbacPermission;
+import java.util.Set;
+import java.util.ArrayList;
 import com.menux.menu_x_backend.entity.Notification;
 import com.menux.menu_x_backend.entity.User;
+import com.menux.menu_x_backend.dto.auth.AuthResponse;
 import com.menux.menu_x_backend.repository.DeliveryAttemptRepository;
 import com.menux.menu_x_backend.repository.NotificationRepository;
 import com.menux.menu_x_backend.repository.UserRepository;
@@ -16,6 +23,10 @@ import com.menux.menu_x_backend.dto.notifications.DeliveryAttemptDto;
 import com.menux.menu_x_backend.dto.common.PageResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -34,8 +45,13 @@ import java.util.Optional;
 @PreAuthorize("hasRole('SUPER_ADMIN')")
 public class AdminController {
 
+    private static final Logger logger = LoggerFactory.getLogger(AdminController.class);
+
     @Autowired
     private AdminService adminService;
+
+    @Autowired
+    private AdminRbacService adminRbacService;
 
     @Autowired
     private NotificationService notificationService;
@@ -62,24 +78,60 @@ public class AdminController {
         return ResponseEntity.ok(users);
     }
 
+    @GetMapping("/users/restaurant-owners")
+    public ResponseEntity<List<UserManagementDTO>> getRestaurantOwners() {
+        List<UserManagementDTO> users = adminService.getRestaurantOwners();
+        return ResponseEntity.ok(users);
+    }
+
     @GetMapping("/users/{id}")
     public ResponseEntity<UserManagementDTO> getUserById(@PathVariable Long id) {
         UserManagementDTO user = adminService.getUserById(id);
         return ResponseEntity.ok(user);
     }
 
+    @PutMapping("/users/{id}")
+    public ResponseEntity<UserManagementDTO> updateUser(
+            @PathVariable Long id,
+            @RequestBody UpdateUserRequest request) {
+        UserManagementDTO updatedUser = adminService.updateUser(id, request);
+        return ResponseEntity.ok(updatedUser);
+    }
+
     @PutMapping("/users/{id}/plan")
     public ResponseEntity<UserManagementDTO> updateUserPlan(
-            @PathVariable Long id, 
+            @PathVariable Long id,
             @RequestBody UpdateUserPlanRequest request) {
         UserManagementDTO updatedUser = adminService.updateUserPlan(id, request.getSubscriptionPlan());
         return ResponseEntity.ok(updatedUser);
     }
 
     @DeleteMapping("/users/{id}")
+    @PreAuthorize("hasRole('SUPER_ADMIN') or hasAuthority('PERM_MANAGE_USERS')")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
-        adminService.deleteUser(id);
-        return ResponseEntity.noContent().build();
+        try {
+            logger.info("Attempting to delete user with id: {}", id);
+            adminService.deleteUser(id);
+            logger.info("Successfully deleted user with id: {}", id);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            logger.warn("Invalid user deletion request for id {}: {}", id, e.getMessage());
+            return ResponseEntity.notFound().build();
+        } catch (RuntimeException e) {
+            logger.error("Failed to delete user with id {}: {}", id, e.getMessage(), e);
+            // Check if it's a business logic conflict
+            if (e.getMessage() != null && (
+                e.getMessage().contains("cannot be deleted") ||
+                e.getMessage().contains("constraint") ||
+                e.getMessage().contains("conflict") ||
+                e.getMessage().contains("referenced"))) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+            }
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to delete user");
+        } catch (Exception e) {
+            logger.error("Unexpected error deleting user with id {}: {}", id, e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error occurred");
+        }
     }
 
     // Restaurant Management Endpoints
@@ -115,6 +167,12 @@ public class AdminController {
         return ResponseEntity.ok(user);
     }
 
+    @PostMapping("/users/{id}/switch")
+    public ResponseEntity<AuthResponse> switchToUser(@PathVariable Long id) {
+        AuthResponse authResponse = adminService.switchToUser(id);
+        return ResponseEntity.ok(authResponse);
+    }
+
     // Notifications - Super Admin tools
     @PostMapping("/notifications/test-push")
     public ResponseEntity<Map<String, Object>> sendTestPush(@RequestBody(required = false) Map<String, Object> body) {
@@ -133,8 +191,8 @@ public class AdminController {
         if (body != null && body.get("data") instanceof Map<?, ?> extra) {
             // merge extra data
             for (Map.Entry<?, ?> e : extra.entrySet()) {
-                if (e.getKey() instanceof String) {
-                    data.put((String) e.getKey(), e.getValue());
+                if (e.getKey() instanceof String key) {
+                    data.put(key, e.getValue());
                 }
             }
         }
@@ -180,8 +238,8 @@ public class AdminController {
         data.put("target", target);
         if (body != null && body.get("data") instanceof Map<?, ?> extra) {
             for (Map.Entry<?, ?> e : extra.entrySet()) {
-                if (e.getKey() instanceof String) {
-                    data.put((String) e.getKey(), e.getValue());
+                if (e.getKey() instanceof String key) {
+                    data.put(key, e.getValue());
                 }
             }
         }
@@ -228,6 +286,33 @@ public class AdminController {
                 .map(DeliveryAttemptDto::from)
                 .toList();
         return ResponseEntity.ok(attempts);
+    }
+
+    @PostMapping("/fix-permissions")
+    public ResponseEntity<String> fixMissingPermissions() {
+        try {
+            // Add missing MANAGE_SYSTEM permission
+            adminRbacService.createPermission("MANAGE_SYSTEM", "Manage system configuration and settings");
+
+            // Get SUPER_ADMIN_RBAC role and add the permission
+            List<RbacRole> roles = adminRbacService.listRoles();
+            RbacRole superAdminRole = roles.stream()
+                .filter(role -> "SUPER_ADMIN_RBAC".equals(role.getName()))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("SUPER_ADMIN_RBAC role not found"));
+
+            // Get current permissions and add MANAGE_SYSTEM
+            Set<String> currentPermissions = superAdminRole.getPermissions().stream()
+                .map(RbacPermission::getKey)
+                .collect(java.util.stream.Collectors.toSet());
+            currentPermissions.add("MANAGE_SYSTEM");
+
+            adminRbacService.setRolePermissions(superAdminRole.getId(), new ArrayList<>(currentPermissions));
+
+            return ResponseEntity.ok("Missing permissions added successfully");
+        } catch (Exception e) {
+            return ResponseEntity.ok("Permission may already exist: " + e.getMessage());
+        }
     }
 
 }

@@ -29,7 +29,7 @@ public class UserManagementDTO {
         this.fullName = user.getFullName();
         this.phoneNumber = user.getPhoneNumber();
         this.role = user.getRole();
-        this.status = "active"; // Default status
+        this.status = user.getIsActive() ? "active" : "inactive"; // Use actual user status
         this.joinDate = user.getCreatedAt();
         this.lastLogin = user.getUpdatedAt(); // Using updatedAt as proxy for last login
 

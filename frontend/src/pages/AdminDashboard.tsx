@@ -18,6 +18,7 @@ import { AdminApprovals } from '../components/admin/AdminApprovals';
 import { RBACDashboard } from '../components/admin/rbac/RBACDashboard';
 import { AdminAuditLogs } from '../components/admin/AdminAuditLogs';
 import { AdminProfile } from '../components/admin/AdminProfile';
+import PermissionProtectedRoute from '../components/auth/PermissionProtectedRoute';
 
 
 // Legacy redirect: /admin/subscriptions/:id -> /admin/restaurants/:id/subscription
@@ -33,22 +34,86 @@ const AdminDashboard: React.FC = () => {
     <AdminLayout>
       <Routes>
         <Route index element={<AdminOverview />} />
-        <Route path="users" element={<UserManagement />} />
-        <Route path="restaurants" element={<RestaurantManagement />} />
-        <Route path="restaurants/:id" element={<AdminRestaurantDetails />} />
-        <Route path="restaurants/:id/analytics" element={<AdminRestaurantAnalytics />} />
-        <Route path="restaurants/:id/qr" element={<AdminRestaurantQR />} />
-        <Route path="plans" element={<PlanManagement />} />
-        <Route path="subscriptions" element={<AdminSubscriptions />} />
-        <Route path="subscriptions/:id" element={<LegacySubscriptionRedirect />} />
-        <Route path="analytics" element={<PlatformAnalytics />} />
-        <Route path="notifications" element={<AdminNotificationsDashboard />} />
-        <Route path="rbac" element={<RBACDashboard />} />
-        <Route path="audit-logs" element={<AdminAuditLogs />} />
-        <Route path="ai-config" element={<AIConfiguration />} />
-        <Route path="settings" element={<PlatformSettings />} />
-        <Route path="payments" element={<PaymentsReview />} />
-        <Route path="approvals" element={<AdminApprovals />} />
+        <Route path="users" element={
+          <PermissionProtectedRoute permission="MANAGE_USERS">
+            <UserManagement />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="restaurants" element={
+          <PermissionProtectedRoute permission="MANAGE_RESTAURANTS">
+            <RestaurantManagement />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="restaurants/:id" element={
+          <PermissionProtectedRoute permission="MANAGE_RESTAURANTS">
+            <AdminRestaurantDetails />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="restaurants/:id/analytics" element={
+          <PermissionProtectedRoute permission="MANAGE_RESTAURANTS">
+            <AdminRestaurantAnalytics />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="restaurants/:id/qr" element={
+          <PermissionProtectedRoute permission="MANAGE_RESTAURANTS">
+            <AdminRestaurantQR />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="plans" element={
+          <PermissionProtectedRoute permission="MANAGE_SUBSCRIPTIONS">
+            <PlanManagement />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="subscriptions" element={
+          <PermissionProtectedRoute permission="MANAGE_SUBSCRIPTIONS">
+            <AdminSubscriptions />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="subscriptions/:id" element={
+          <PermissionProtectedRoute permission="MANAGE_SUBSCRIPTIONS">
+            <LegacySubscriptionRedirect />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="analytics" element={
+          <PermissionProtectedRoute permission="VIEW_ANALYTICS">
+            <PlatformAnalytics />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="notifications" element={
+          <PermissionProtectedRoute permission="MANAGE_NOTIFICATIONS">
+            <AdminNotificationsDashboard />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="rbac" element={
+          <PermissionProtectedRoute permission="MANAGE_RBAC">
+            <RBACDashboard />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="audit-logs" element={
+          <PermissionProtectedRoute permission="VIEW_AUDIT_LOGS">
+            <AdminAuditLogs />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="ai-config" element={
+          <PermissionProtectedRoute permission="MANAGE_SYSTEM">
+            <AIConfiguration />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="settings" element={
+          <PermissionProtectedRoute permission="MANAGE_SYSTEM">
+            <PlatformSettings />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="payments" element={
+          <PermissionProtectedRoute permission="MANAGE_PAYMENTS">
+            <PaymentsReview />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="approvals" element={
+          <PermissionProtectedRoute permission="MANAGE_APPROVALS">
+            <AdminApprovals />
+          </PermissionProtectedRoute>
+        } />
         <Route path="profile" element={<AdminProfile />} />
 
         <Route path="*" element={<Navigate to="." replace />} />
