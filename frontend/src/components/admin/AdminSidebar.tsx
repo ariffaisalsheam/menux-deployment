@@ -12,7 +12,8 @@ import {
   Bell,
   CreditCard,
   BadgeCheck,
-  ScrollText
+  ScrollText,
+  Activity
 } from 'lucide-react';
 import {
   Sidebar,
@@ -109,6 +110,12 @@ const systemItems = [
     icon: Settings,
     href: '/admin/settings',
     permission: 'MANAGE_SYSTEM',
+  },
+  {
+    title: 'System Health',
+    icon: Activity,
+    href: '/admin/system-health',
+    permission: 'VIEW_SYSTEM_HEALTH',
   }
 ];
 

@@ -1,10 +1,11 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import { Spinner } from '@/components/ui/spinner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertTriangle, Shield } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { AlertTriangle, Shield, RefreshCw } from 'lucide-react'
 
 interface PermissionProtectedRouteProps {
   children: React.ReactNode
@@ -22,8 +23,23 @@ export default function PermissionProtectedRoute({
   fallbackComponent
 }: PermissionProtectedRouteProps) {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
-  const { hasPermission, hasAnyPermission, hasAllPermissions, loading: permissionsLoading } = usePermissions()
+  const { hasPermission, hasAnyPermission, hasAllPermissions, loading: permissionsLoading, reload } = usePermissions()
   const location = useLocation()
+  const [refreshing, setRefreshing] = useState(false)
+
+  const handleRefreshPermissions = async () => {
+    setRefreshing(true)
+    try {
+      // Trigger a permission reload
+      await reload()
+      // Force a page refresh to ensure all components get the new permissions
+      window.location.reload()
+    } catch (error) {
+      console.error('Failed to refresh permissions:', error)
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   if (authLoading || permissionsLoading) {
     return (
@@ -90,6 +106,30 @@ export default function PermissionProtectedRoute({
               <p className="text-xs text-gray-500 mt-4">
                 Contact your system administrator to request access.
               </p>
+              <div className="mt-4">
+                <Button
+                  onClick={handleRefreshPermissions}
+                  disabled={refreshing}
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                >
+                  {refreshing ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Refreshing...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Refresh Permissions
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  Try refreshing if you were recently granted access
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

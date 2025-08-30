@@ -439,6 +439,34 @@ return response.data as { success: boolean; recipients?: number; created?: numbe
       attemptAt: string
       retryCount: number
     }>
+  },
+
+  // Get system health data
+  getSystemHealth: async () => {
+    const response = await api.get('/admin/system/health')
+    return response.data
+  },
+
+  // Get user details for notification context
+  getUserDetails: async (userId: number) => {
+    const response = await api.get(`/admin/users/${userId}/details`)
+    return response.data as {
+      id: number
+      fullName: string
+      email: string
+      role: string
+    }
+  },
+
+  // Get restaurant details for notification context
+  getRestaurantDetails: async (restaurantId: number) => {
+    const response = await api.get(`/admin/restaurants/${restaurantId}/details`)
+    return response.data as {
+      id: number
+      name: string
+      address?: string
+      phone?: string
+    }
   }
 }
 
@@ -518,6 +546,18 @@ export const notificationAdminAPI = {
   getAnalyticsSeries: async (params: { metric: 'sent' | 'delivered' | 'failed' | 'opened' | 'clicked'; from?: string; to?: string; interval?: 'hour' | 'day' | 'week' }) => {
     const res = await api.get('/admin/notifications/analytics/series', { params })
     return res.data as Array<{ ts: string; value: number }>
+  },
+
+  // Get delivery attempts for a notification
+  getDeliveryAttempts: async (notificationId: number) => {
+    const res = await api.get(`/admin/notifications/${notificationId}/delivery-attempts`)
+    return res.data
+  },
+
+  // Clear notifications by date range
+  clearNotifications: async (dateRange: { from?: string; to?: string }) => {
+    const res = await api.delete('/admin/notifications/clear', { params: dateRange })
+    return res.data
   }
 }
 // Media API

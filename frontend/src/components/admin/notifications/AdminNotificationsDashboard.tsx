@@ -1,379 +1,342 @@
 import React, { useEffect, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs'
-import { Card } from '../../ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card'
 import { Button } from '../../ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table'
+import { Badge } from '../../ui/badge'
 import { Input } from '../../ui/input'
-import { notificationAdminAPI } from '../../../services/api'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../../ui/alert-dialog'
+import { notificationAdminAPI, adminAPI } from '../../../services/api'
+import { useApi } from '../../../hooks/useApi'
+import { LoadingSkeleton } from '../../common/LoadingSpinner'
+import { ErrorDisplay } from '../../common/ErrorDisplay'
 import FCMComposer from './FCMComposer'
-import AdminNotifications from '../AdminNotifications'
 
-// Minimal scaffold tabs for Templates, Segments, Campaigns, Analytics
+// Types
+interface AdminNotification {
+  id: number
+  targetUserId?: number
+  type: string
+  title: string
+  body: string
+  data?: string
+  priority: string
+  status: string
+  readAt?: string
+  createdAt: string
+}
 
-const TemplatesTab: React.FC = () => {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [items, setItems] = useState<Array<{ id: number; name: string; channel: 'push' | 'email' | 'in_app'; title?: string; body: string; variables?: string[]; enabled: boolean; updatedAt?: string }>>([])
-  const [notAvailable, setNotAvailable] = useState(false)
-  // Create form state
-  const [tName, setTName] = useState('')
-  const [tChannel, setTChannel] = useState<'push' | 'email' | 'in_app'>('push')
-  const [tTitle, setTTitle] = useState('')
-  const [tBody, setTBody] = useState('')
-  const [tVars, setTVars] = useState('')
-  const [tEnabled, setTEnabled] = useState(true)
+interface PageResp<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  hasNext: boolean
+}
 
-  const load = async () => {
-    setLoading(true); setError(null)
+interface DeliveryAttempt {
+  id: number
+  notificationId: number
+  channel: string
+  status: string
+  providerMessageId?: string
+  responseCode?: string
+  errorMessage?: string
+  attemptAt: string
+  retryCount: number
+}
+
+// Recent Notifications Component
+const RecentNotifications: React.FC = () => {
+  const [page, setPage] = useState(0)
+  const [size] = useState(20)
+  const [attemptsOpenFor, setAttemptsOpenFor] = useState<number | null>(null)
+  const [attempts, setAttempts] = useState<DeliveryAttempt[] | null>(null)
+
+  const {
+    data: pageData,
+    loading: listLoading,
+    error: listError,
+    refetch: refetchList
+  } = useApi<PageResp<AdminNotification>>(() => adminAPI.listRecentNotifications(page, size), { immediate: true })
+
+  useEffect(() => {
+    refetchList()
+  }, [page, size])
+
+  const notifications = pageData?.content || []
+
+  const openAttempts = async (notificationId: number) => {
+    setAttemptsOpenFor(notificationId)
     try {
-      const res = await notificationAdminAPI.listTemplates()
-      setItems(res)
-    } catch (e: any) {
-      const status = e?.response?.status
-      if (status === 404 || status === 501) {
-        setNotAvailable(true)
-        setError(null)
-      } else {
-        setError(e?.message || 'Failed to load templates')
-      }
-    } finally {
-      setLoading(false)
+      const data = await notificationAdminAPI.getDeliveryAttempts(notificationId)
+      setAttempts(data)
+    } catch (e) {
+      console.error('Failed to load delivery attempts:', e)
+      setAttempts([])
     }
   }
-  useEffect(() => { load() }, [])
 
-  const onCreate = async () => {
-    if (notAvailable) return
-    const name = tName.trim()
-    const body = tBody.trim()
-    if (!name || !body) { setError('Name and Body are required'); return }
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Recent Notifications</CardTitle>
+        <CardDescription>Latest notifications across the platform</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {listLoading ? (
+          <LoadingSkeleton lines={6} />
+        ) : listError ? (
+          <ErrorDisplay error={listError} onRetry={refetchList} />
+        ) : notifications.length === 0 ? (
+          <div className="text-sm text-muted-foreground">No notifications found.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-2 pr-3">ID</th>
+                  <th className="py-2 pr-3">Created</th>
+                  <th className="py-2 pr-3">Title</th>
+                  <th className="py-2 pr-3">Body</th>
+                  <th className="py-2 pr-3">Target User</th>
+                  <th className="py-2 pr-3">Status</th>
+                  <th className="py-2 pr-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {notifications.map((n) => (
+                  <tr key={n.id} className="border-b hover:bg-accent/30">
+                    <td className="py-2 pr-3">{n.id}</td>
+                    <td className="py-2 pr-3">{new Date(n.createdAt).toLocaleString()}</td>
+                    <td className="py-2 pr-3 font-medium">{n.title}</td>
+                    <td className="py-2 pr-3 truncate max-w-[320px]">{n.body}</td>
+                    <td className="py-2 pr-3">{n.targetUserId ?? '-'}</td>
+                    <td className="py-2 pr-3">
+                      <Badge variant="outline">{n.status}</Badge>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm" onClick={() => openAttempts(n.id)}>Delivery</Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-3xl">
+                          <DialogHeader>
+                            <DialogTitle>Delivery Attempts for Notification #{n.id}</DialogTitle>
+                          </DialogHeader>
+                          {attemptsOpenFor === n.id && attempts && attempts.length > 0 && (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="text-left border-b">
+                                    <th className="py-2 pr-3">Time</th>
+                                    <th className="py-2 pr-3">Channel</th>
+                                    <th className="py-2 pr-3">Status</th>
+                                    <th className="py-2 pr-3">Provider ID</th>
+                                    <th className="py-2 pr-3">Code</th>
+                                    <th className="py-2 pr-3">Error</th>
+                                    <th className="py-2 pr-3">Retries</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {attempts.map(a => (
+                                    <tr key={a.id} className="border-b">
+                                      <td className="py-2 pr-3">{new Date(a.attemptAt).toLocaleString()}</td>
+                                      <td className="py-2 pr-3">{a.channel}</td>
+                                      <td className="py-2 pr-3">{a.status}</td>
+                                      <td className="py-2 pr-3">{a.providerMessageId || '-'}</td>
+                                      <td className="py-2 pr-3">{a.responseCode || '-'}</td>
+                                      <td className="py-2 pr-3">{a.errorMessage || '-'}</td>
+                                      <td className="py-2 pr-3">{a.retryCount}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                          {attemptsOpenFor === n.id && (!attempts || attempts.length === 0) && (
+                            <div className="text-sm text-muted-foreground">No delivery attempts found.</div>
+                          )}
+                        </DialogContent>
+                      </Dialog>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {pageData && pageData.totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-muted-foreground">
+              Page {pageData.page + 1} of {pageData.totalPages} • {pageData.totalElements} total
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Previous</Button>
+              <Button variant="outline" size="sm" disabled={!pageData.hasNext} onClick={() => setPage((p) => p + 1)}>Next</Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// Notification Clearing Component
+const NotificationClearingFeature: React.FC = () => {
+  const [clearOption, setClearOption] = useState<'7days' | '30days' | 'custom'>('7days')
+  const [customStartDate, setCustomStartDate] = useState('')
+  const [customEndDate, setCustomEndDate] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  const getDateRange = () => {
+    const now = new Date()
+    let startDate: Date
+    let endDate = now
+
+    switch (clearOption) {
+      case '7days':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        break
+      case '30days':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        break
+      case 'custom':
+        if (!customStartDate || !customEndDate) {
+          throw new Error('Please select both start and end dates for custom range')
+        }
+        startDate = new Date(customStartDate)
+        endDate = new Date(customEndDate)
+        if (startDate > endDate) {
+          throw new Error('Start date must be before end date')
+        }
+        break
+      default:
+        throw new Error('Invalid clear option')
+    }
+
+    return {
+      from: startDate.toISOString().split('T')[0],
+      to: endDate.toISOString().split('T')[0]
+    }
+  }
+
+  const handleClearNotifications = async () => {
+    setError(null)
+    setSuccess(null)
+    setLoading(true)
+
     try {
-      setLoading(true)
-      const variables = tVars.split(',').map(s => s.trim()).filter(Boolean)
-      await notificationAdminAPI.createTemplate({
-        name,
-        channel: tChannel,
-        title: tTitle.trim() || undefined,
-        body,
-        variables: variables.length ? variables : undefined,
-        enabled: tEnabled,
-      })
-      setTName(''); setTTitle(''); setTBody(''); setTVars(''); setTEnabled(true)
-      await load()
+      const dateRange = getDateRange()
+      const result = await notificationAdminAPI.clearNotifications(dateRange)
+
+      if (result.success) {
+        setSuccess(`Successfully cleared ${result.deletedCount} notifications from ${result.dateRange.from} to ${result.dateRange.to}`)
+      } else {
+        setError('Failed to clear notifications')
+      }
     } catch (e: any) {
-      setError(e?.message || 'Failed to create template')
+      setError(e?.message || 'Failed to clear notifications')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="space-y-4">
-      <Card className="p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold">Create Template</h3>
-          <div className="flex gap-2">
-            <Button onClick={load} variant="secondary" disabled={loading}>Refresh</Button>
-            <Button onClick={onCreate} disabled={notAvailable || loading || !tName.trim() || !tBody.trim()}>Create</Button>
+    <Card>
+      <CardHeader>
+        <CardTitle>Clear Notifications</CardTitle>
+        <CardDescription>Remove notifications from the system by date range</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium">Clear Options</label>
+            <Select value={clearOption} onValueChange={(value: any) => setClearOption(value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7days">Last 7 days</SelectItem>
+                <SelectItem value="30days">Last 30 days</SelectItem>
+                <SelectItem value="custom">Custom date range</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </div>
-        {notAvailable && <div className="text-xs text-muted-foreground">Templates admin API is not available on the server yet.</div>}
-        <div className="grid md:grid-cols-2 gap-3">
-          <Input placeholder="Name" value={tName} onChange={e => setTName(e.target.value)} disabled={notAvailable} />
-          <div className="flex gap-2 items-center">
-            <label className="text-sm text-muted-foreground">Channel</label>
-            <select className="border rounded px-2 py-1 text-sm" value={tChannel} onChange={e => setTChannel(e.target.value as any)} disabled={notAvailable}>
-              <option value="push">push</option>
-              <option value="email">email</option>
-              <option value="in_app">in_app</option>
-            </select>
-          </div>
-          <Input placeholder="Title (optional)" value={tTitle} onChange={e => setTTitle(e.target.value)} disabled={notAvailable} />
-          <Input placeholder="Variables (comma separated)" value={tVars} onChange={e => setTVars(e.target.value)} disabled={notAvailable} />
-          <Input placeholder="Body" value={tBody} onChange={e => setTBody(e.target.value)} disabled={notAvailable} />
-          <div className="flex items-center gap-2">
-            <input id="tpl-enabled" type="checkbox" checked={tEnabled} onChange={e => setTEnabled(e.target.checked)} disabled={notAvailable} />
-            <label htmlFor="tpl-enabled" className="text-sm">Enabled</label>
-          </div>
-        </div>
-      </Card>
 
-      <Card className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold">Templates</h3>
-          <Button onClick={load} variant="secondary" disabled={loading}>Refresh</Button>
+          {clearOption === 'custom' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium">Start Date</label>
+                <Input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">End Date</label>
+                <Input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  min={customStartDate}
+                />
+              </div>
+            </div>
+          )}
         </div>
-        {error && <div className="text-red-600 text-sm mb-2">{error}</div>}
-        {notAvailable ? (
-          <div className="text-sm text-muted-foreground mt-1">
-            Templates admin API is not available on the server yet. This tab will be enabled after backend rollout.
-          </div>
-        ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Channel</TableHead>
-              <TableHead>Enabled</TableHead>
-              <TableHead>Updated</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map(t => (
-              <TableRow key={t.id}>
-                <TableCell>{t.id}</TableCell>
-                <TableCell>{t.name}</TableCell>
-                <TableCell>{t.channel}</TableCell>
-                <TableCell>{t.enabled ? 'Yes' : 'No'}</TableCell>
-                <TableCell>{t.updatedAt ? new Date(t.updatedAt).toLocaleString() : '-'}</TableCell>
-                <TableCell className="space-x-2">
-                  <Button size="sm" variant="outline" disabled>Edit</Button>
-                  <Button size="sm" variant="destructive" disabled>Delete</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+
+        {error && (
+          <div className="text-red-600 text-sm bg-red-50 p-3 rounded">{error}</div>
         )}
-        {(!loading && !notAvailable && items.length === 0) && <div className="text-sm text-muted-foreground mt-2">No templates yet.</div>}
-      </Card>
-    </div>
+
+        {success && (
+          <div className="text-green-600 text-sm bg-green-50 p-3 rounded">{success}</div>
+        )}
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="destructive"
+              disabled={loading || (clearOption === 'custom' && (!customStartDate || !customEndDate))}
+            >
+              {loading ? 'Clearing...' : 'Clear Notifications'}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm Notification Clearing</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action will permanently delete notifications from the selected date range. This cannot be undone.
+                <br /><br />
+                <strong>Selected range:</strong> {clearOption === 'custom' ? `${customStartDate} to ${customEndDate}` : clearOption === '7days' ? 'Last 7 days' : 'Last 30 days'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleClearNotifications} className="bg-red-600 hover:bg-red-700">
+                Clear Notifications
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </CardContent>
+    </Card>
   )
 }
 
-const SegmentsTab: React.FC = () => {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [items, setItems] = useState<Array<{ id: number; name: string; description?: string; filters: Record<string, any>; estimatedCount?: number; updatedAt?: string }>>([])
-  const [newName, setNewName] = useState('')
-  const [newDesc, setNewDesc] = useState('')
-  const [notAvailable, setNotAvailable] = useState(false)
-
-  const load = async () => {
-    setLoading(true); setError(null)
-    try {
-      const res = await notificationAdminAPI.listSegments()
-      setItems(res)
-    } catch (e: any) {
-      const status = e?.response?.status
-      if (status === 404 || status === 501) {
-        setNotAvailable(true)
-        setError(null)
-      } else {
-        setError(e?.message || 'Failed to load segments')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-  useEffect(() => { load() }, [])
-
-  const onCreate = async () => {
-    if (notAvailable || !newName.trim()) return
-    try {
-      setLoading(true)
-      await notificationAdminAPI.createSegment({ name: newName.trim(), description: newDesc.trim() || undefined, filters: {} })
-      setNewName(''); setNewDesc('')
-      await load()
-    } catch (e: any) {
-      setError(e?.message || 'Failed to create segment')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <Card className="p-4 space-y-3">
-        <h3 className="font-semibold">Create Segment</h3>
-        <div className="grid md:grid-cols-3 gap-3 items-end">
-          <Input placeholder="Name" value={newName} onChange={e => setNewName(e.target.value)} disabled={notAvailable} />
-          <Input placeholder="Description (optional)" value={newDesc} onChange={e => setNewDesc(e.target.value)} disabled={notAvailable} />
-          <Button onClick={onCreate} disabled={notAvailable || loading || !newName.trim()}>Create</Button>
-        </div>
-        <p className="text-xs text-muted-foreground">Scaffold: filters editor coming later.</p>
-        <p className="text-xs text-muted-foreground">Next: go to Campaigns tab to create a campaign using this segment and a template.</p>
-        {notAvailable && (
-          <div className="text-xs text-muted-foreground">Segments admin API is not available on the server yet.</div>
-        )}
-      </Card>
-
-      <Card className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold">Segments</h3>
-          <Button onClick={load} variant="secondary" disabled={loading}>Refresh</Button>
-        </div>
-        {error && <div className="text-red-600 text-sm mb-2">{error}</div>}
-        {notAvailable ? (
-          <div className="text-sm text-muted-foreground">Segments admin API is not available on the server yet.</div>
-        ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Est. Count</TableHead>
-              <TableHead>Updated</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map(s => (
-              <TableRow key={s.id}>
-                <TableCell>{s.id}</TableCell>
-                <TableCell>{s.name}</TableCell>
-                <TableCell>{s.description || '-'}</TableCell>
-                <TableCell>{s.estimatedCount ?? '-'}</TableCell>
-                <TableCell>{s.updatedAt ? new Date(s.updatedAt).toLocaleString() : '-'}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        )}
-        {(!loading && !notAvailable && items.length === 0) && <div className="text-sm text-muted-foreground mt-2">No segments yet.</div>}
-      </Card>
-    </div>
-  )
-}
-
-const CampaignsTab: React.FC = () => {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [items, setItems] = useState<Array<{ id: number; name: string; status: 'DRAFT' | 'SCHEDULED' | 'RUNNING' | 'PAUSED' | 'COMPLETED'; scheduleAt?: string | null }>>([])
-  const [notAvailable, setNotAvailable] = useState(false)
-  // Create form state
-  const [cName, setCName] = useState('')
-  const [templates, setTemplates] = useState<Array<{ id: number; name: string }>>([])
-  const [segments, setSegments] = useState<Array<{ id: number; name: string }>>([])
-  const [templateId, setTemplateId] = useState<number | ''>('')
-  const [segmentId, setSegmentId] = useState<number | ''>('')
-  const [scheduleAt, setScheduleAt] = useState('')
-
-  const load = async () => {
-    setLoading(true); setError(null)
-    try {
-      const res = await notificationAdminAPI.listCampaigns()
-      setItems(res)
-    } catch (e: any) {
-      const status = e?.response?.status
-      if (status === 404 || status === 501) {
-        setNotAvailable(true)
-        setError(null)
-      } else {
-        setError(e?.message || 'Failed to load campaigns')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadRefs = async () => {
-    try {
-      const [tpls, segs] = await Promise.all([
-        notificationAdminAPI.listTemplates(),
-        notificationAdminAPI.listSegments(),
-      ])
-      setTemplates(tpls.map((t: any) => ({ id: t.id, name: t.name })))
-      setSegments(segs.map((s: any) => ({ id: s.id, name: s.name })))
-    } catch (_) {
-      // ignore
-    }
-  }
-
-  useEffect(() => { load(); loadRefs() }, [])
-
-  const onCreate = async () => {
-    if (notAvailable) return
-    const name = cName.trim()
-    if (!name || !templateId || !segmentId) { setError('Name, Template and Segment are required'); return }
-    try {
-      setLoading(true)
-      await notificationAdminAPI.createCampaign({
-        name,
-        templateId: Number(templateId),
-        segmentId: Number(segmentId),
-        scheduleAt: scheduleAt.trim() || undefined,
-      })
-      setCName(''); setTemplateId(''); setSegmentId(''); setScheduleAt('')
-      await load()
-    } catch (e: any) {
-      setError(e?.message || 'Failed to create campaign')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <Card className="p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold">Create Campaign</h3>
-          <div className="flex gap-2">
-            <Button onClick={load} variant="secondary" disabled={loading}>Refresh</Button>
-            <Button onClick={onCreate} disabled={notAvailable || loading || !cName.trim() || !templateId || !segmentId}>Create</Button>
-          </div>
-        </div>
-        {notAvailable && <div className="text-xs text-muted-foreground">Campaigns admin API is not available on the server yet.</div>}
-        <div className="grid md:grid-cols-2 gap-3">
-          <Input placeholder="Name" value={cName} onChange={e => setCName(e.target.value)} disabled={notAvailable} />
-          <div className="flex gap-2 items-center">
-            <label className="text-sm text-muted-foreground">Template</label>
-            <select className="border rounded px-2 py-1 text-sm" value={templateId} onChange={e => setTemplateId(e.target.value ? Number(e.target.value) : '')} disabled={notAvailable}>
-              <option value="">Select</option>
-              {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </div>
-          <div className="flex gap-2 items-center">
-            <label className="text-sm text-muted-foreground">Segment</label>
-            <select className="border rounded px-2 py-1 text-sm" value={segmentId} onChange={e => setSegmentId(e.target.value ? Number(e.target.value) : '')} disabled={notAvailable}>
-              <option value="">Select</option>
-              {segments.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
-          <Input placeholder="ScheduleAt (YYYY-MM-DDTHH:mm:ss) optional" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)} disabled={notAvailable} />
-        </div>
-      </Card>
-
-      <Card className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold">Campaigns</h3>
-          <Button onClick={load} variant="secondary" disabled={loading}>Refresh</Button>
-        </div>
-        {error && <div className="text-red-600 text-sm mb-2">{error}</div>}
-        {notAvailable ? (
-          <div className="text-sm text-muted-foreground">Campaigns admin API is not available on the server yet.</div>
-        ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Schedule</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map(c => (
-              <TableRow key={c.id}>
-                <TableCell>{c.id}</TableCell>
-                <TableCell>{c.name}</TableCell>
-                <TableCell>{c.status}</TableCell>
-                <TableCell>{c.scheduleAt ? new Date(c.scheduleAt).toLocaleString() : '-'}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        )}
-        {(!loading && !notAvailable && items.length === 0) && <div className="text-sm text-muted-foreground mt-2">No campaigns yet.</div>}
-      </Card>
-    </div>
-  )
-}
-
+// Analytics tab for notification metrics and management
 const AnalyticsTab: React.FC = () => {
-  const [summary, setSummary] = useState<{ sent: number; delivered: number; failed: number; opened?: number; clicked?: number; unsubscribed?: number } | null>(null)
+  const [summary, setSummary] = useState<{ sent: number; delivered: number; failed: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notAvailable, setNotAvailable] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -383,7 +346,12 @@ const AnalyticsTab: React.FC = () => {
     setError(null); setLoading(true)
     try {
       const res = await notificationAdminAPI.getAnalyticsSummary({})
-      setSummary(res)
+      // Only use metrics that have real backend support
+      setSummary({
+        sent: res.sent,
+        delivered: res.delivered,
+        failed: res.failed
+      })
       setLastUpdated(new Date().toLocaleString())
     } catch (e: any) {
       const status = e?.response?.status
@@ -400,66 +368,66 @@ const AnalyticsTab: React.FC = () => {
   useEffect(() => { load() }, [])
 
   return (
-    <Card className="p-4 space-y-2">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Delivery & Engagement</h3>
-        <div className="flex items-center gap-2">
-          {lastUpdated && <span className="text-xs text-muted-foreground">Updated: {lastUpdated}</span>}
-          <Button variant="secondary" onClick={load} disabled={loading}>{loading ? 'Refreshing...' : 'Refresh'}</Button>
+    <div className="space-y-6">
+      {/* Delivery & Engagement Metrics */}
+      <Card className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Delivery & Engagement</h3>
+          <div className="flex items-center gap-2">
+            {lastUpdated && <span className="text-xs text-muted-foreground">Updated: {lastUpdated}</span>}
+            <Button variant="secondary" onClick={load} disabled={loading}>
+              {loading ? 'Refreshing...' : 'Refresh'}
+            </Button>
+          </div>
         </div>
-      </div>
-      {error && <div className="text-red-600 text-sm">{error}</div>}
-      {notAvailable ? (
-        <div className="text-sm text-muted-foreground">Analytics API is not available on the server yet.</div>
-      ) : summary ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-          <div className="p-3 rounded border"><div className="text-muted-foreground">Sent</div><div className="text-xl font-semibold">{summary.sent}</div></div>
-          <div className="p-3 rounded border"><div className="text-muted-foreground">Delivered</div><div className="text-xl font-semibold">{summary.delivered}</div></div>
-          <div className="p-3 rounded border"><div className="text-muted-foreground">Failed</div><div className="text-xl font-semibold">{summary.failed}</div></div>
-          {summary.opened !== undefined && <div className="p-3 rounded border"><div className="text-muted-foreground">Opened</div><div className="text-xl font-semibold">{summary.opened}</div></div>}
-          {summary.clicked !== undefined && <div className="p-3 rounded border"><div className="text-muted-foreground">Clicked</div><div className="text-xl font-semibold">{summary.clicked}</div></div>}
-          {summary.unsubscribed !== undefined && <div className="p-3 rounded border"><div className="text-muted-foreground">Unsubscribed</div><div className="text-xl font-semibold">{summary.unsubscribed}</div></div>}
-        </div>
-      ) : (
-        <div className="text-sm text-muted-foreground">No data yet.</div>
-      )}
-    </Card>
+        {error && <div className="text-red-600 text-sm">{error}</div>}
+        {notAvailable ? (
+          <div className="text-sm text-muted-foreground">Analytics API is not available on the server yet.</div>
+        ) : summary ? (
+          <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="bg-blue-50 p-3 rounded">
+              <div className="font-medium text-blue-900">Sent</div>
+              <div className="text-xl font-bold text-blue-700">{summary.sent}</div>
+              <div className="text-xs text-blue-600 mt-1">Total notifications sent</div>
+            </div>
+            <div className="bg-green-50 p-3 rounded">
+              <div className="font-medium text-green-900">Delivered</div>
+              <div className="text-xl font-bold text-green-700">{summary.delivered}</div>
+              <div className="text-xs text-green-600 mt-1">Successfully delivered</div>
+            </div>
+            <div className="bg-red-50 p-3 rounded">
+              <div className="font-medium text-red-900">Failed</div>
+              <div className="text-xl font-bold text-red-700">{summary.failed}</div>
+              <div className="text-xs text-red-600 mt-1">Delivery failures</div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground">Loading analytics...</div>
+        )}
+      </Card>
+
+      {/* Recent Notifications moved here */}
+      <RecentNotifications />
+
+      {/* Notification Clearing Feature */}
+      <NotificationClearingFeature />
+    </div>
   )
 }
 
 export const AdminNotificationsDashboard: React.FC = () => {
-  const [active, setActive] = useState<'operations' | 'compose' | 'templates' | 'segments' | 'campaigns' | 'analytics'>('operations')
+  const [active, setActive] = useState<'compose' | 'analytics'>('compose')
   return (
     <div className="p-4 space-y-4">
       <h1 className="text-2xl font-semibold">Notifications Admin</h1>
       <Tabs value={active} onValueChange={v => setActive(v as any)} className="w-full">
         <TabsList>
-          <TabsTrigger value="operations">Operations</TabsTrigger>
           <TabsTrigger value="compose">Compose</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
-          <TabsTrigger value="segments">Segments</TabsTrigger>
-          <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="operations">
-          {active === 'operations' && <AdminNotifications />}
-        </TabsContent>
-
-        <TabsContent value="templates">
-          {active === 'templates' && <TemplatesTab />}
-        </TabsContent>
-
         <TabsContent value="compose">
           {active === 'compose' && <FCMComposer />}
-        </TabsContent>
-
-        <TabsContent value="segments">
-          {active === 'segments' && <SegmentsTab />}
-        </TabsContent>
-
-        <TabsContent value="campaigns">
-          {active === 'campaigns' && <CampaignsTab />}
         </TabsContent>
 
         <TabsContent value="analytics">

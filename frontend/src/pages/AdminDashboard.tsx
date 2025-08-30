@@ -18,6 +18,8 @@ import { AdminApprovals } from '../components/admin/AdminApprovals';
 import { RBACDashboard } from '../components/admin/rbac/RBACDashboard';
 import { AdminAuditLogs } from '../components/admin/AdminAuditLogs';
 import { AdminProfile } from '../components/admin/AdminProfile';
+import { AdminRestaurantSubscription } from '../components/admin/AdminRestaurantSubscription';
+import SystemHealth from '../components/admin/SystemHealth';
 import PermissionProtectedRoute from '../components/auth/PermissionProtectedRoute';
 
 
@@ -57,6 +59,11 @@ const AdminDashboard: React.FC = () => {
         <Route path="restaurants/:id/qr" element={
           <PermissionProtectedRoute permission="MANAGE_RESTAURANTS">
             <AdminRestaurantQR />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="restaurants/:id/subscription" element={
+          <PermissionProtectedRoute permission="MANAGE_SUBSCRIPTIONS">
+            <AdminRestaurantSubscription />
           </PermissionProtectedRoute>
         } />
         <Route path="plans" element={
@@ -102,6 +109,11 @@ const AdminDashboard: React.FC = () => {
         <Route path="settings" element={
           <PermissionProtectedRoute permission="MANAGE_SYSTEM">
             <PlatformSettings />
+          </PermissionProtectedRoute>
+        } />
+        <Route path="system-health" element={
+          <PermissionProtectedRoute permission="VIEW_SYSTEM_HEALTH">
+            <SystemHealth />
           </PermissionProtectedRoute>
         } />
         <Route path="payments" element={

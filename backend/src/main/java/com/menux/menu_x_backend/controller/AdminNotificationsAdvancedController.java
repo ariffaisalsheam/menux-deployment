@@ -6,6 +6,7 @@ import com.menux.menu_x_backend.entity.NotificationSegment;
 import com.menux.menu_x_backend.entity.NotificationTemplate;
 import com.menux.menu_x_backend.repository.DeliveryAttemptRepository;
 import com.menux.menu_x_backend.repository.NotificationCampaignRepository;
+import com.menux.menu_x_backend.repository.NotificationRepository;
 import com.menux.menu_x_backend.repository.NotificationSegmentRepository;
 import com.menux.menu_x_backend.repository.NotificationTemplateRepository;
 import org.springframework.http.HttpStatus;
@@ -31,17 +32,20 @@ public class AdminNotificationsAdvancedController {
     private final NotificationTemplateRepository templateRepository;
     private final NotificationSegmentRepository segmentRepository;
     private final NotificationCampaignRepository campaignRepository;
+    private final NotificationRepository notificationRepository;
 
     public AdminNotificationsAdvancedController(
             DeliveryAttemptRepository deliveryAttemptRepository,
             NotificationTemplateRepository templateRepository,
             NotificationSegmentRepository segmentRepository,
-            NotificationCampaignRepository campaignRepository
+            NotificationCampaignRepository campaignRepository,
+            NotificationRepository notificationRepository
     ) {
         this.deliveryAttemptRepository = deliveryAttemptRepository;
         this.templateRepository = templateRepository;
         this.segmentRepository = segmentRepository;
         this.campaignRepository = campaignRepository;
+        this.notificationRepository = notificationRepository;
     }
 
     // ===== Templates =====
@@ -226,6 +230,47 @@ public class AdminNotificationsAdvancedController {
             c.setStatus(NotificationCampaign.Status.RUNNING);
             return ResponseEntity.ok(campaignRepository.save(c));
         }).orElseGet(() -> notFound("Campaign not found"));
+    }
+
+    // ===== Notification Management =====
+    @DeleteMapping("/clear")
+    public ResponseEntity<?> clearNotifications(
+            @RequestParam(value = "from", required = false) String from,
+            @RequestParam(value = "to", required = false) String to
+    ) {
+        try {
+            // Parse date range
+            LocalDateTime[] range = parseRangeOrDefault(from, to, 7);
+            LocalDateTime start = range[0];
+            LocalDateTime end = range[1];
+
+            // Validate date range
+            if (start.isAfter(end)) {
+                return badRequest("Start date must be before end date");
+            }
+
+            // Prevent clearing all notifications without date restriction
+            if (from == null && to == null) {
+                return badRequest("Date range is required for safety. Use 'from' and/or 'to' parameters.");
+            }
+
+            // Clear notifications in the specified date range
+            int deletedCount = notificationRepository.deleteByCreatedAtBetween(start, end);
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "deletedCount", deletedCount,
+                "dateRange", Map.of(
+                    "from", start.toString(),
+                    "to", end.toString()
+                )
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "success", false,
+                "error", "Failed to clear notifications: " + e.getMessage()
+            ));
+        }
     }
 
     // ===== Analytics =====

@@ -1,30 +1,35 @@
 package com.menux.menu_x_backend.service;
 
-import com.menux.menu_x_backend.dto.admin.UserManagementDTO;
-import com.menux.menu_x_backend.dto.admin.RestaurantManagementDTO;
-import com.menux.menu_x_backend.dto.admin.PlatformAnalyticsDTO;
-import com.menux.menu_x_backend.dto.admin.UpdateUserRequest;
-import com.menux.menu_x_backend.dto.auth.AuthResponse;
-import com.menux.menu_x_backend.entity.User;
-import com.menux.menu_x_backend.entity.Restaurant;
-import com.menux.menu_x_backend.entity.rbac.RbacRole;
-import com.menux.menu_x_backend.repository.UserRepository;
-import com.menux.menu_x_backend.repository.RestaurantRepository;
-import com.menux.menu_x_backend.repository.rbac.RbacRoleRepository;
-import com.menux.menu_x_backend.security.JwtUtil;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.Map;
-import java.util.HashMap;
+import com.menux.menu_x_backend.dto.admin.PlatformAnalyticsDTO;
+import com.menux.menu_x_backend.dto.admin.RestaurantManagementDTO;
+import com.menux.menu_x_backend.dto.admin.UpdateUserRequest;
+import com.menux.menu_x_backend.dto.admin.UserManagementDTO;
+import com.menux.menu_x_backend.dto.auth.AuthResponse;
+import com.menux.menu_x_backend.entity.Restaurant;
+import com.menux.menu_x_backend.entity.User;
+import com.menux.menu_x_backend.entity.rbac.RbacRole;
+import com.menux.menu_x_backend.repository.RestaurantRepository;
+import com.menux.menu_x_backend.repository.UserRepository;
+import com.menux.menu_x_backend.repository.OrderRepository;
+import com.menux.menu_x_backend.repository.rbac.RbacRoleRepository;
+import com.menux.menu_x_backend.security.JwtUtil;
 
 @Service
 public class AdminService {
@@ -48,6 +53,15 @@ public class AdminService {
 
     @Autowired
     private AuditService auditService;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private SystemHealthService systemHealthService;
 
     // User Management Methods
     public List<UserManagementDTO> getAllUsers() {
@@ -259,6 +273,10 @@ public class AdminService {
                         }
                     }
 
+                    // Calculate real revenue and order count for this restaurant
+                    dto.setTotalOrders(orderRepository.countByRestaurantId(restaurant.getId()));
+                    dto.setMonthlyRevenue(calculateRestaurantRevenue(restaurant.getId()));
+
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -282,6 +300,10 @@ public class AdminService {
             }
         }
 
+        // Calculate real revenue and order count for this restaurant
+        dto.setTotalOrders(orderRepository.countByRestaurantId(restaurant.getId()));
+        dto.setMonthlyRevenue(calculateRestaurantRevenue(restaurant.getId()));
+
         return dto;
     }
 
@@ -294,28 +316,29 @@ public class AdminService {
         Long proSubscriptions = restaurantRepository.countBySubscriptionPlan(Restaurant.SubscriptionPlan.PRO);
         Long basicSubscriptions = restaurantRepository.countBySubscriptionPlan(Restaurant.SubscriptionPlan.BASIC);
 
-        // Calculate monthly revenue (Pro subscriptions * 1500 BDT)
-        Double monthlyRevenue = proSubscriptions * 1500.0;
+        // Calculate monthly revenue from actual orders and subscriptions
+        Double orderRevenue = calculateTotalOrderRevenue();
+        Double subscriptionRevenue = proSubscriptions * 1500.0; // Pro subscription fee
+        Double monthlyRevenue = orderRevenue + subscriptionRevenue;
 
         // Count only active restaurant owners (exclude SUPER_ADMIN users)
         Long activeUsers = userRepository.countActiveRestaurantOwners();
-        
-        // System health is always 99.8% for demo purposes
-        Double systemHealth = 99.8;
-        
-        // Total orders would come from an Order entity (not implemented yet)
-        Long totalOrders = 0L;
+
+        // Get real system health from SystemHealthService
+        Double systemHealth = systemHealthService.calculateSystemHealth();
+
+        // Get total orders count from database
+        Long totalOrders = orderRepository.count();
         
         // Conversion rate calculation (Pro / Total restaurants)
         Double conversionRate = totalRestaurants > 0 ? (proSubscriptions.doubleValue() / totalRestaurants.doubleValue()) * 100 : 0.0;
         
-        // Calculate trend data (percentage changes from previous month)
-        // For demo purposes, we'll simulate realistic growth patterns based on current data
-        Double totalUsersChange = calculateTrendChange(totalUsers, "users");
-        Double totalRestaurantsChange = calculateTrendChange(totalRestaurants, "restaurants");
-        Double proSubscriptionsChange = calculateTrendChange(proSubscriptions, "pro_subscriptions");
-        Double monthlyRevenueChange = calculateTrendChange(monthlyRevenue.longValue(), "revenue");
-        Double activeUsersChange = calculateTrendChange(activeUsers, "active_users");
+        // Calculate real trend data (percentage changes from previous month)
+        Double totalUsersChange = calculateRealTrendChange(totalUsers, "users");
+        Double totalRestaurantsChange = calculateRealTrendChange(totalRestaurants, "restaurants");
+        Double proSubscriptionsChange = calculateRealTrendChange(proSubscriptions, "pro_subscriptions");
+        Double monthlyRevenueChange = calculateRealTrendChange(monthlyRevenue.longValue(), "revenue");
+        Double activeUsersChange = calculateRealTrendChange(activeUsers, "active_users");
         
         return new PlatformAnalyticsDTO(
             totalUsers,
@@ -335,31 +358,102 @@ public class AdminService {
         );
     }
     
-    private Double calculateTrendChange(Long currentValue, String metric) {
-        // Simulate realistic growth patterns based on business metrics
-        // In a real implementation, this would query historical data from the database
+    /**
+     * Calculate total revenue from all served orders across all restaurants
+     */
+    private Double calculateTotalOrderRevenue() {
+        try {
+            // Sum all served orders' total amounts
+            return jdbcTemplate.queryForObject(
+                "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status = 'SERVED'",
+                Double.class
+            );
+        } catch (DataAccessException e) {
+            logger.warn("Failed to calculate total order revenue: {}", e.getMessage());
+            return 0.0;
+        }
+    }
+
+    /**
+     * Calculate revenue for a specific restaurant from served orders
+     */
+    private Double calculateRestaurantRevenue(Long restaurantId) {
+        try {
+            // Use the existing repository method to get served orders revenue
+            java.math.BigDecimal revenue = orderRepository.sumTotalAmountByRestaurantIdAndServed(restaurantId);
+            return revenue != null ? revenue.doubleValue() : 0.0;
+        } catch (Exception e) {
+            logger.warn("Failed to calculate restaurant revenue for restaurant {}: {}", restaurantId, e.getMessage());
+            return 0.0;
+        }
+    }
+
+    /**
+     * Calculate real trend change percentage by comparing current vs previous month data
+     */
+    private Double calculateRealTrendChange(Long currentValue, String metric) {
         if (currentValue == null || currentValue == 0) {
             return 0.0;
         }
-        
-        return switch (metric) {
-            case "users" ->
-                // User growth typically 8-15% monthly for growing platforms
-                8.0 + (currentValue % 8); // 8-15% range
-            case "restaurants" ->
-                // Restaurant onboarding is slower but steady
-                5.0 + (currentValue % 6); // 5-10% range
-            case "pro_subscriptions" ->
-                // Pro conversions show higher growth as platform matures
-                12.0 + (currentValue % 8); // 12-19% range
-            case "revenue" ->
-                // Revenue growth follows pro subscription growth
-                15.0 + (currentValue % 10); // 15-24% range
-            case "active_users" ->
-                // Active user growth is slightly lower than total users
-                6.0 + (currentValue % 6); // 6-11% range
-            default -> 0.0;
-        };
+
+        try {
+            // Get the count from 30 days ago for comparison
+            LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+            Long previousValue = getPreviousMonthValue(metric, thirtyDaysAgo);
+
+            if (previousValue == null || previousValue == 0) {
+                // If no previous data, return 0% change
+                return 0.0;
+            }
+
+            // Calculate percentage change: ((current - previous) / previous) * 100
+            double change = ((currentValue.doubleValue() - previousValue.doubleValue()) / previousValue.doubleValue()) * 100.0;
+
+            // Round to 1 decimal place
+            return Math.round(change * 10.0) / 10.0;
+
+        } catch (Exception e) {
+            // If there's an error calculating real trends, return 0% change
+            logger.warn("Failed to calculate trend change for metric {}: {}", metric, e.getMessage());
+            return 0.0;
+        }
+    }
+
+    /**
+     * Get the count of a specific metric from a previous date
+     */
+    private Long getPreviousMonthValue(String metric, LocalDateTime date) {
+        try {
+            return switch (metric) {
+                case "users" -> jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM users WHERE created_at <= ?",
+                    Long.class, date
+                );
+                case "restaurants" -> jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM restaurants WHERE created_at <= ?",
+                    Long.class, date
+                );
+                case "pro_subscriptions" -> jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM restaurant_subscriptions WHERE subscription_plan = 'PRO' AND created_at <= ?",
+                    Long.class, date
+                );
+                case "revenue" -> {
+                    Double revenue = jdbcTemplate.queryForObject(
+                        "SELECT COALESCE(SUM(amount), 0) FROM manual_payments WHERE created_at <= ? AND created_at >= ?",
+                        Double.class, date, date.minusDays(30)
+                    );
+                    yield revenue != null ? revenue.longValue() : 0L;
+                }
+                case "active_users" -> jdbcTemplate.queryForObject(
+                    "SELECT COUNT(DISTINCT user_id) FROM menu_views WHERE created_at <= ? AND created_at >= ?",
+                    Long.class, date, date.minusDays(7)
+                );
+                default -> 0L;
+            };
+        } catch (DataAccessException e) {
+            logger.warn("Failed to get previous month value for metric {}: {}", metric, e.getMessage());
+            return 0L;
+        }
     }
 
     @Transactional

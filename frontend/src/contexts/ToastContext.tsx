@@ -35,34 +35,41 @@ const ToastContext = createContext<ToastContextValue | null>(null)
 
 const MAX_VISIBLE = 3
 
+// Counter to ensure unique IDs even when created at the same timestamp
+let toastIdCounter = 0;
+
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [visible, setVisible] = useState<ToastItem[]>([])
   const [queue, setQueue] = useState<ToastItem[]>([])
 
-  const dequeueIfNeeded = useCallback(() => {
-    setVisible((vis) => {
-      if (vis.length < MAX_VISIBLE && queue.length > 0) {
-        const [next, ...rest] = queue
-        setQueue(rest)
-        return [...vis, next]
-      }
-      return vis
-    })
-  }, [queue])
-
   useEffect(() => {
     if (visible.length < MAX_VISIBLE && queue.length > 0) {
-      const t = setTimeout(dequeueIfNeeded, 50)
+      const t = setTimeout(() => {
+        setQueue((currentQueue) => {
+          if (currentQueue.length > 0) {
+            const [next, ...rest] = currentQueue
+            setVisible((vis) => {
+              if (vis.length < MAX_VISIBLE) {
+                return [...vis, next]
+              }
+              return vis
+            })
+            return rest
+          }
+          return currentQueue
+        })
+      }, 50)
       return () => clearTimeout(t)
     }
-  }, [visible, queue, dequeueIfNeeded])
+  }, [visible.length, queue.length])
 
   const remove = useCallback((id: number) => {
     setVisible((vis) => vis.filter((t) => t.id !== id))
   }, [])
 
   const show = useCallback((opts: ShowOptions) => {
-    const id = Date.now() + Math.random()
+    // Generate a unique ID using timestamp, counter, and random number
+    const id = Date.now() * 1000 + (++toastIdCounter) + Math.floor(Math.random() * 1000)
     const item: ToastItem = {
       id,
       message: opts.message,
@@ -106,18 +113,16 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           position={pos}
           items={containers[pos]}
           onClose={remove}
-          onExited={dequeueIfNeeded}
         />
       ))}
     </ToastContext.Provider>
   )
 }
 
-function ToastContainer({ position, items, onClose, onExited }: {
+function ToastContainer({ position, items, onClose }: {
   position: ToastPosition
   items: ToastItem[]
   onClose: (id: number) => void
-  onExited: () => void
 }) {
   const base = 'fixed z-[9999] space-y-2'
   const posClass = position === 'top-right'
@@ -130,13 +135,13 @@ function ToastContainer({ position, items, onClose, onExited }: {
   return (
     <div className={`${base} ${posClass}`} aria-live="polite" role="status">
       {items.map((t) => (
-        <ToastView key={t.id} item={t} onClose={onClose} onExited={onExited} />
+        <ToastView key={t.id} item={t} onClose={onClose} />
       ))}
     </div>
   )
 }
 
-function ToastView({ item, onClose, onExited }: { item: ToastItem; onClose: (id: number) => void; onExited: () => void }) {
+function ToastView({ item, onClose }: { item: ToastItem; onClose: (id: number) => void }) {
   const [mounted, setMounted] = useState(false)
   const [closing, setClosing] = useState(false)
   const timerRef = useRef<number | null>(null)
@@ -153,8 +158,8 @@ function ToastView({ item, onClose, onExited }: { item: ToastItem; onClose: (id:
     if (closing) return
     setClosing(true)
     // allow CSS transition to play before removal
-    window.setTimeout(() => { onClose(item.id); onExited() }, 150)
-  }, [closing, item.id, onClose, onExited])
+    window.setTimeout(() => { onClose(item.id) }, 150)
+  }, [closing, item.id, onClose])
 
   const colorClass = item.type === 'success'
     ? 'bg-green-600 text-white'

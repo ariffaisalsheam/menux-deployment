@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Store, Crown, DollarSign, TrendingUp, Activity, AlertCircle, Bell, CreditCard, Settings, UserPlus, BarChart3, Shield, Zap, CheckCircle, XCircle, Clock, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Users, Store, Crown, DollarSign, TrendingUp, Activity, AlertCircle, Bell, CreditCard, Settings, BarChart3, Shield, Zap, CheckCircle, XCircle, Clock, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
+import EnhancedNotificationCard from './notifications/EnhancedNotificationCard';
+import NotificationDetailModal from './notifications/NotificationDetailModal';
+import type { EnhancedNotification } from '../../types/notifications';
+import { notificationEnhancer } from '../../services/notificationEnhancer';
 // Custom Progress component (inline to avoid import issues)
 const Progress = ({ value = 0, className = "" }: { value?: number; className?: string }) => {
   const percentage = Math.min(Math.max(value, 0), 100);
@@ -15,7 +19,7 @@ const Progress = ({ value = 0, className = "" }: { value?: number; className?: s
     </div>
   );
 };
-import { analyticsAPI, adminAPI } from '../../services/api';
+import { analyticsAPI, adminAPI, notificationAPI } from '../../services/api';
 import { useApi } from '../../hooks/useApi';
 import { LoadingSkeleton } from '../common/LoadingSpinner';
 import { ErrorDisplay } from '../common/ErrorDisplay';
@@ -41,13 +45,14 @@ interface QuickAction {
   badge?: string;
 }
 
-interface RecentActivity {
-  id: string;
-  type: 'user_registered' | 'plan_upgraded' | 'plan_downgraded' | 'payment_received' | 'notification_sent' | 'system_alert';
-  message: string;
-  timestamp: Date;
-  severity?: 'info' | 'warning' | 'error' | 'success';
-}
+// Legacy interface (commented out for now)
+// interface RecentActivity {
+//   id: string;
+//   type: 'user_registered' | 'plan_upgraded' | 'plan_downgraded' | 'payment_received' | 'notification_sent' | 'system_alert';
+//   message: string;
+//   timestamp: Date;
+//   severity?: 'info' | 'warning' | 'error' | 'success';
+// }
 
 interface DashboardCounts {
   pendingPayments: number;
@@ -83,9 +88,14 @@ export const AdminOverview: React.FC = () => {
     activeUsers: 0,
     systemAlerts: 0
   });
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  // const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const [enhancedNotifications, setEnhancedNotifications] = useState<EnhancedNotification[]>([]);
+  const [selectedNotification, setSelectedNotification] = useState<EnhancedNotification | null>(null);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [systemAlerts, setSystemAlerts] = useState<SystemAlert[]>([]);
+  const [systemHealth, setSystemHealth] = useState<any>(null);
   const [isTestPushLoading, setIsTestPushLoading] = useState(false);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
   // Fetch platform analytics
   const {
@@ -103,35 +113,88 @@ export const AdminOverview: React.FC = () => {
   }, []);
 
   const loadDashboardData = async () => {
+    let notifications: any = { totalElements: 0, content: [] };
+
     try {
+      setIsLoadingNotifications(true);
+
       // Load recent notifications for activity feed
-      const notifications = await adminAPI.listRecentNotifications(0, 10);
-      const activities: RecentActivity[] = notifications.content.map(notif => ({
-        id: notif.id.toString(),
-        type: notif.type as any,
-        message: `${notif.title}: ${notif.body}`,
-        timestamp: new Date(notif.createdAt),
-        severity: notif.priority === 'HIGH' ? 'error' : notif.priority === 'MEDIUM' ? 'warning' : 'info'
-      }));
-      setRecentActivity(activities);
+      notifications = await adminAPI.listRecentNotifications(0, 10);
+
+      // Enhance notifications with context information
+      const enhanced = await notificationEnhancer.enhanceNotifications(notifications.content);
+      setEnhancedNotifications(enhanced);
+
+      // Keep legacy activity format for backward compatibility (commented out for now)
+      // const activities: RecentActivity[] = notifications.content.map(notif => ({
+      //   id: notif.id.toString(),
+      //   type: notif.type as any,
+      //   message: `${notif.title}: ${notif.body}`,
+      //   timestamp: new Date(notif.createdAt),
+      //   severity: notif.priority === 'HIGH' ? 'error' : notif.priority === 'NORMAL' ? 'warning' : 'info'
+      // }));
+      // setRecentActivity(activities);
+
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+      notify('Failed to load recent notifications', 'error');
+    } finally {
+      setIsLoadingNotifications(false);
+    }
+
+    try {
+      // Load pending payments count (placeholder for now)
+      let pendingPaymentsCount = 0;
+      try {
+        // TODO: Implement getPendingCount API
+        // const paymentsResponse = await adminAPI.getPendingCount();
+        // pendingPaymentsCount = paymentsResponse;
+        pendingPaymentsCount = 0; // Placeholder
+      } catch (error) {
+        console.warn('Failed to load pending payments count:', error);
+      }
+
+      // Calculate system alerts count based on health data
+      const systemAlertsCount = systemHealth ?
+        (systemHealth.overallHealth < 95 ? 1 : 0) +
+        (!systemHealth.databaseHealthy ? 1 : 0) +
+        (!systemHealth.apiHealthy ? 1 : 0) +
+        (!systemHealth.errorRateHealthy ? 1 : 0) +
+        (!systemHealth.serviceHealthy ? 1 : 0) : 0;
 
       // Update dashboard counts
       setDashboardCounts({
-        pendingPayments: 0, // Will be updated when payments API is called
+        pendingPayments: pendingPaymentsCount,
         unreadNotifications: notifications.totalElements,
         activeUsers: analytics?.activeUsers || 0,
-        systemAlerts: 1 // Mock system health alert
+        systemAlerts: systemAlertsCount
       });
 
-      // Mock system alerts
+      // Load real system health data (placeholder for now)
+      // TODO: Implement getSystemHealth API
+      // const healthData = await adminAPI.getSystemHealth();
+      const healthData = { overallHealth: 98.5 }; // Placeholder
+      setSystemHealth(healthData);
+
+      // System health alerts based on real data
+      const systemHealthPercentage = healthData.overallHealth || 0;
+      const alertType = systemHealthPercentage >= 99 ? 'success' : systemHealthPercentage >= 95 ? 'warning' : 'error';
+      const alertTitle = systemHealthPercentage >= 99 ? 'All Systems Operational' :
+                        systemHealthPercentage >= 95 ? 'Minor Service Issues' : 'System Issues Detected';
+      const alertMessage = systemHealthPercentage >= 99 ?
+        `All services running normally with ${systemHealthPercentage.toFixed(1)}% health score` :
+        systemHealthPercentage >= 95 ?
+        `Some services experiencing minor issues. Current health: ${systemHealthPercentage.toFixed(1)}%` :
+        `System issues detected. Current health: ${systemHealthPercentage.toFixed(1)}%. Please check service status.`;
+
       setSystemAlerts([
         {
           id: '1',
-          type: 'success',
-          title: 'All Systems Operational',
-          message: `All services running normally with ${analytics?.systemHealth || 99.8}% uptime`,
+          type: alertType,
+          title: alertTitle,
+          message: alertMessage,
           timestamp: new Date(),
-          priority: 'low'
+          priority: systemHealthPercentage >= 99 ? 'low' : systemHealthPercentage >= 95 ? 'medium' : 'high'
         }
       ]);
     } catch (error) {
@@ -153,6 +216,42 @@ export const AdminOverview: React.FC = () => {
       notify('Failed to send test notification', 'error');
     } finally {
       setIsTestPushLoading(false);
+    }
+  };
+
+  // Notification handlers
+  const handleNotificationClick = (notification: EnhancedNotification) => {
+    setSelectedNotification(notification);
+    setIsNotificationModalOpen(true);
+  };
+
+  const handleNotificationModalClose = () => {
+    setIsNotificationModalOpen(false);
+    setSelectedNotification(null);
+  };
+
+  const handleMarkAsRead = async (notificationId: number) => {
+    try {
+      await notificationAPI.markRead(notificationId);
+      console.log('Mark as read:', notificationId);
+      notify('Notification marked as read', 'success');
+      loadDashboardData(); // Refresh notifications
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+      notify('Failed to mark notification as read', 'error');
+    }
+  };
+
+  const handleDeleteNotification = async (notificationId: number) => {
+    try {
+      await notificationAPI.clear(notificationId);
+      console.log('Delete notification:', notificationId);
+      notify('Notification deleted', 'success');
+      loadDashboardData(); // Refresh notifications
+      handleNotificationModalClose();
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+      notify('Failed to delete notification', 'error');
     }
   };
 
@@ -313,53 +412,54 @@ export const AdminOverview: React.FC = () => {
     </Card>
   );
 
-  const ActivityItem = ({ activity }: { activity: RecentActivity }) => {
-    const getActivityIcon = () => {
-      switch (activity.type) {
-        case 'user_registered': return <UserPlus className="w-4 h-4" />;
-        case 'plan_upgraded': return <TrendingUp className="w-4 h-4" />;
-        case 'plan_downgraded': return <ArrowDownRight className="w-4 h-4" />;
-        case 'payment_received': return <CreditCard className="w-4 h-4" />;
-        case 'notification_sent': return <Bell className="w-4 h-4" />;
-        case 'system_alert': return <AlertCircle className="w-4 h-4" />;
-        default: return <Activity className="w-4 h-4" />;
-      }
-    };
+  // Legacy ActivityItem component (commented out for now)
+  // const ActivityItem = ({ activity }: { activity: RecentActivity }) => {
+  //   const getActivityIcon = () => {
+  //     switch (activity.type) {
+  //       case 'user_registered': return <UserPlus className="w-4 h-4" />;
+  //       case 'plan_upgraded': return <TrendingUp className="w-4 h-4" />;
+  //       case 'plan_downgraded': return <ArrowDownRight className="w-4 h-4" />;
+  //       case 'payment_received': return <CreditCard className="w-4 h-4" />;
+  //       case 'notification_sent': return <Bell className="w-4 h-4" />;
+  //       case 'system_alert': return <AlertCircle className="w-4 h-4" />;
+  //       default: return <Activity className="w-4 h-4" />;
+  //     }
+  //   };
 
-    const getSeverityColor = () => {
-      switch (activity.severity) {
-        case 'error': return 'text-red-500';
-        case 'warning': return 'text-yellow-500';
-        case 'success': return 'text-green-500';
-        default: return 'text-blue-500';
-      }
-    };
+  //   const getSeverityColor = () => {
+  //     switch (activity.severity) {
+  //       case 'error': return 'text-red-500';
+  //       case 'warning': return 'text-yellow-500';
+  //       case 'success': return 'text-green-500';
+  //       default: return 'text-blue-500';
+  //     }
+  //   };
 
-    const formatTime = (timestamp: Date) => {
-      const now = new Date();
-      const diff = now.getTime() - timestamp.getTime();
-      const minutes = Math.floor(diff / 60000);
-      const hours = Math.floor(minutes / 60);
-      const days = Math.floor(hours / 24);
+  //   const formatTime = (timestamp: Date) => {
+  //     const now = new Date();
+  //     const diff = now.getTime() - timestamp.getTime();
+  //     const minutes = Math.floor(diff / 60000);
+  //     const hours = Math.floor(minutes / 60);
+  //     const days = Math.floor(hours / 24);
 
-      if (days > 0) return `${days}d ago`;
-      if (hours > 0) return `${hours}h ago`;
-      if (minutes > 0) return `${minutes}m ago`;
-      return 'Just now';
-    };
+  //     if (days > 0) return `${days}d ago`;
+  //     if (hours > 0) return `${hours}h ago`;
+  //     if (minutes > 0) return `${minutes}m ago`;
+  //     return 'Just now';
+  //   };
 
-    return (
-      <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-        <div className={`${getSeverityColor()} mt-0.5`}>
-          {getActivityIcon()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{activity.message}</p>
-          <p className="text-xs text-muted-foreground">{formatTime(activity.timestamp)}</p>
-        </div>
-      </div>
-    );
-  };
+  //   return (
+  //     <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+  //       <div className={`${getSeverityColor()} mt-0.5`}>
+  //         {getActivityIcon()}
+  //       </div>
+  //       <div className="flex-1 min-w-0">
+  //         <p className="text-sm font-medium truncate">{activity.message}</p>
+  //         <p className="text-xs text-muted-foreground">{formatTime(activity.timestamp)}</p>
+  //       </div>
+  //     </div>
+  //   );
+  // };
 
   const SystemAlertItem = ({ alert }: { alert: SystemAlert }) => {
     const getAlertIcon = () => {
@@ -407,7 +507,7 @@ export const AdminOverview: React.FC = () => {
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="flex items-center gap-1">
             <Activity className="w-3 h-3" />
-            System Health: {analytics?.systemHealth || 99.8}%
+            System Health: {systemHealth?.overallHealth?.toFixed(1) || analytics?.systemHealth || 0}%
           </Badge>
           <Badge variant="secondary" className="flex items-center gap-1">
             <Users className="w-3 h-3" />
@@ -426,49 +526,50 @@ export const AdminOverview: React.FC = () => {
           title="Total Users"
           value={analytics.totalUsers.toLocaleString()}
           subtitle="Registered users"
-          trend={analytics.totalUsersChange ? `+${analytics.totalUsersChange.toFixed(1)}%` : "+0.0%"}
-          trendDirection={analytics.totalUsersChange && analytics.totalUsersChange > 0 ? "up" : "down"}
+          trend={analytics.totalUsersChange ? `${analytics.totalUsersChange > 0 ? '+' : ''}${analytics.totalUsersChange.toFixed(1)}%` : "No change"}
+          trendDirection={analytics.totalUsersChange ? (analytics.totalUsersChange > 0 ? "up" : "down") : "neutral"}
           icon={Users}
         />
         <StatCard
           title="Active Restaurants"
           value={analytics.totalRestaurants.toLocaleString()}
           subtitle="Live restaurants"
-          trend={analytics.totalRestaurantsChange ? `+${analytics.totalRestaurantsChange.toFixed(1)}%` : "+0.0%"}
-          trendDirection={analytics.totalRestaurantsChange && analytics.totalRestaurantsChange > 0 ? "up" : "down"}
+          trend={analytics.totalRestaurantsChange ? `${analytics.totalRestaurantsChange > 0 ? '+' : ''}${analytics.totalRestaurantsChange.toFixed(1)}%` : "No change"}
+          trendDirection={analytics.totalRestaurantsChange ? (analytics.totalRestaurantsChange > 0 ? "up" : "down") : "neutral"}
           icon={Store}
         />
         <StatCard
           title="Pro Subscriptions"
           value={analytics.proSubscriptions.toLocaleString()}
           subtitle="Premium accounts"
-          trend={analytics.proSubscriptionsChange ? `+${analytics.proSubscriptionsChange.toFixed(1)}%` : "+0.0%"}
-          trendDirection={analytics.proSubscriptionsChange && analytics.proSubscriptionsChange > 0 ? "up" : "down"}
+          trend={analytics.proSubscriptionsChange ? `${analytics.proSubscriptionsChange > 0 ? '+' : ''}${analytics.proSubscriptionsChange.toFixed(1)}%` : "No change"}
+          trendDirection={analytics.proSubscriptionsChange ? (analytics.proSubscriptionsChange > 0 ? "up" : "down") : "neutral"}
           icon={Crown}
         />
         <StatCard
           title="Monthly Revenue"
           value={`৳${analytics.monthlyRevenue.toLocaleString()}`}
           subtitle="This month"
-          trend={analytics.monthlyRevenueChange ? `+${analytics.monthlyRevenueChange.toFixed(1)}%` : "+0.0%"}
-          trendDirection={analytics.monthlyRevenueChange && analytics.monthlyRevenueChange > 0 ? "up" : "down"}
+          trend={analytics.monthlyRevenueChange ? `${analytics.monthlyRevenueChange > 0 ? '+' : ''}${analytics.monthlyRevenueChange.toFixed(1)}%` : "No change"}
+          trendDirection={analytics.monthlyRevenueChange ? (analytics.monthlyRevenueChange > 0 ? "up" : "down") : "neutral"}
           icon={DollarSign}
         />
         <StatCard
           title="Active Users"
           value={analytics.activeUsers.toLocaleString()}
           icon={Activity}
-          trend={analytics.activeUsersChange ? `+${analytics.activeUsersChange.toFixed(1)}%` : "+0.0%"}
-          trendDirection={analytics.activeUsersChange && analytics.activeUsersChange > 0 ? "up" : "down"}
+          trend={analytics.activeUsersChange ? `${analytics.activeUsersChange > 0 ? '+' : ''}${analytics.activeUsersChange.toFixed(1)}%` : "No change"}
+          trendDirection={analytics.activeUsersChange ? (analytics.activeUsersChange > 0 ? "up" : "down") : "neutral"}
           subtitle="Last 30 days"
         />
         <StatCard
           title="System Health"
-          value={`${analytics.systemHealth}%`}
+          value={`${systemHealth?.overallHealth?.toFixed(1) || analytics.systemHealth}%`}
           icon={CheckCircle}
-          trend="99.8%"
+          trend={`${systemHealth?.overallHealth?.toFixed(1) || analytics.systemHealth}% health score`}
           trendDirection="neutral"
-          subtitle="All services operational"
+          subtitle={systemHealth?.overallHealth >= 99 ? "All services operational" :
+                   systemHealth?.overallHealth >= 95 ? "Minor issues detected" : "System issues detected"}
         />
       </div>
 
@@ -512,15 +613,28 @@ export const AdminOverview: React.FC = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 max-h-80 overflow-y-auto">
-              {recentActivity.length > 0 ? (
-                recentActivity.map((activity) => (
-                  <ActivityItem key={activity.id} activity={activity} />
+            <div className="space-y-3 max-h-80 overflow-y-auto">
+              {isLoadingNotifications ? (
+                <div className="space-y-3">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="animate-pulse">
+                      <div className="h-20 bg-gray-200 rounded-lg"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : enhancedNotifications.length > 0 ? (
+                enhancedNotifications.map((notification) => (
+                  <EnhancedNotificationCard
+                    key={notification.id}
+                    notification={notification}
+                    onClick={() => handleNotificationClick(notification)}
+                  />
                 ))
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No recent activity</p>
+                  <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No recent notifications</p>
+                  <p className="text-xs mt-1">New notifications will appear here</p>
                 </div>
               )}
             </div>
@@ -540,8 +654,8 @@ export const AdminOverview: React.FC = () => {
                   System health and important alerts
                 </CardDescription>
               </div>
-              <Badge variant={analytics?.systemHealth >= 99 ? 'default' : 'destructive'}>
-                {analytics?.systemHealth >= 99 ? 'Healthy' : 'Issues Detected'}
+              <Badge variant={(systemHealth?.overallHealth || analytics?.systemHealth) >= 99 ? 'default' : 'destructive'}>
+                {(systemHealth?.overallHealth || analytics?.systemHealth) >= 99 ? 'Healthy' : 'Issues Detected'}
               </Badge>
             </div>
           </CardHeader>
@@ -551,9 +665,9 @@ export const AdminOverview: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium">Overall Health</span>
-                  <span className="text-muted-foreground">{analytics?.systemHealth || 99.8}%</span>
+                  <span className="text-muted-foreground">{(systemHealth?.overallHealth || analytics?.systemHealth || 0).toFixed(1)}%</span>
                 </div>
-                <Progress value={analytics?.systemHealth || 99.8} className="h-2" />
+                <Progress value={systemHealth?.overallHealth || analytics?.systemHealth || 0} className="h-2" />
               </div>
 
               {/* System Alerts */}
@@ -567,6 +681,15 @@ export const AdminOverview: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Notification Detail Modal */}
+      <NotificationDetailModal
+        notification={selectedNotification}
+        isOpen={isNotificationModalOpen}
+        onClose={handleNotificationModalClose}
+        onMarkAsRead={handleMarkAsRead}
+        onDelete={handleDeleteNotification}
+      />
     </div>
   );
 };

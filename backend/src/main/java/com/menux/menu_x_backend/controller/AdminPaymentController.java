@@ -56,4 +56,15 @@ public class AdminPaymentController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
+
+    @GetMapping("/pending-count")
+    public ResponseEntity<Map<String, Long>> getPendingPaymentsCount() {
+        try {
+            List<ManualPayment> pendingPayments = manualPaymentService.adminList(ManualPayment.Status.PENDING);
+            long count = pendingPayments.size();
+            return ResponseEntity.ok(Map.of("count", count));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("count", 0L));
+        }
+    }
 }

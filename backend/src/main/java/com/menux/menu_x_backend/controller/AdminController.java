@@ -1,44 +1,58 @@
 package com.menux.menu_x_backend.controller;
 
-import com.menux.menu_x_backend.dto.admin.UserManagementDTO;
-import com.menux.menu_x_backend.dto.admin.RestaurantManagementDTO;
-import com.menux.menu_x_backend.dto.admin.PlatformAnalyticsDTO;
-import com.menux.menu_x_backend.dto.admin.UpdateUserPlanRequest;
-import com.menux.menu_x_backend.dto.admin.UpdateUserRequest;
-import com.menux.menu_x_backend.service.AdminService;
-import com.menux.menu_x_backend.service.AdminRbacService;
-import com.menux.menu_x_backend.service.NotificationService;
-import com.menux.menu_x_backend.entity.rbac.RbacRole;
-import com.menux.menu_x_backend.entity.rbac.RbacPermission;
-import java.util.Set;
 import java.util.ArrayList;
-import com.menux.menu_x_backend.entity.Notification;
-import com.menux.menu_x_backend.entity.User;
-import com.menux.menu_x_backend.dto.auth.AuthResponse;
-import com.menux.menu_x_backend.repository.DeliveryAttemptRepository;
-import com.menux.menu_x_backend.repository.NotificationRepository;
-import com.menux.menu_x_backend.repository.UserRepository;
-import com.menux.menu_x_backend.dto.notifications.NotificationDto;
-import com.menux.menu_x_backend.dto.notifications.DeliveryAttemptDto;
-import com.menux.menu_x_backend.dto.common.PageResponse;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Optional;
+import com.menux.menu_x_backend.dto.admin.PlatformAnalyticsDTO;
+import com.menux.menu_x_backend.dto.admin.RestaurantManagementDTO;
+import com.menux.menu_x_backend.dto.admin.UpdateUserPlanRequest;
+import com.menux.menu_x_backend.dto.admin.UpdateUserRequest;
+import com.menux.menu_x_backend.dto.admin.UserManagementDTO;
+import com.menux.menu_x_backend.dto.auth.AuthResponse;
+import com.menux.menu_x_backend.dto.common.PageResponse;
+import com.menux.menu_x_backend.dto.notifications.DeliveryAttemptDto;
+import com.menux.menu_x_backend.dto.notifications.NotificationDto;
+import com.menux.menu_x_backend.entity.Notification;
+import com.menux.menu_x_backend.entity.Restaurant;
+import com.menux.menu_x_backend.entity.User;
+import com.menux.menu_x_backend.entity.rbac.RbacPermission;
+import com.menux.menu_x_backend.entity.rbac.RbacRole;
+import com.menux.menu_x_backend.repository.DeliveryAttemptRepository;
+import com.menux.menu_x_backend.repository.NotificationRepository;
+import com.menux.menu_x_backend.repository.RestaurantRepository;
+import com.menux.menu_x_backend.repository.UserRepository;
+import com.menux.menu_x_backend.security.JwtUtil;
+import com.menux.menu_x_backend.service.AdminRbacService;
+import com.menux.menu_x_backend.service.AdminService;
+import com.menux.menu_x_backend.service.NotificationService;
+import com.menux.menu_x_backend.service.RbacService;
+import com.menux.menu_x_backend.service.SystemHealthService;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -60,10 +74,22 @@ public class AdminController {
     private UserRepository userRepository;
 
     @Autowired
+    private RestaurantRepository restaurantRepository;
+
+    @Autowired
     private NotificationRepository notificationRepository;
 
     @Autowired
     private DeliveryAttemptRepository deliveryAttemptRepository;
+
+    @Autowired
+    private RbacService rbacService;
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @Autowired
+    private SystemHealthService systemHealthService;
 
     private Optional<Long> currentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -152,6 +178,22 @@ public class AdminController {
     public ResponseEntity<PlatformAnalyticsDTO> getPlatformAnalytics() {
         PlatformAnalyticsDTO analytics = adminService.getPlatformAnalytics();
         return ResponseEntity.ok(analytics);
+    }
+
+    // System Health Endpoints
+    @GetMapping("/system-health")
+    @PreAuthorize("hasAuthority('PERM_VIEW_SYSTEM_HEALTH')")
+    public ResponseEntity<SystemHealthService.SystemHealthStatus> getSystemHealth() {
+        SystemHealthService.SystemHealthStatus healthStatus = systemHealthService.getDetailedHealthStatus();
+        return ResponseEntity.ok(healthStatus);
+    }
+
+    // Alternative endpoint for frontend compatibility
+    @GetMapping("/system/health")
+    @PreAuthorize("hasAuthority('PERM_VIEW_SYSTEM_HEALTH')")
+    public ResponseEntity<SystemHealthService.SystemHealthStatus> getSystemHealthAlt() {
+        SystemHealthService.SystemHealthStatus healthStatus = systemHealthService.getDetailedHealthStatus();
+        return ResponseEntity.ok(healthStatus);
     }
 
     // System Management Endpoints
@@ -288,6 +330,60 @@ public class AdminController {
         return ResponseEntity.ok(attempts);
     }
 
+    // User details for notification context
+    @GetMapping("/users/{id}/details")
+    public ResponseEntity<Map<String, Object>> getUserDetails(@PathVariable("id") Long id) {
+        try {
+            User user = userRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            Map<String, Object> userDetails = Map.of(
+                "id", user.getId(),
+                "fullName", user.getFullName() != null ? user.getFullName() : "Unknown User",
+                "email", user.getEmail() != null ? user.getEmail() : "unknown@example.com",
+                "role", user.getRole().name()
+            );
+
+            return ResponseEntity.ok(userDetails);
+        } catch (Exception e) {
+            // Return fallback data if user not found
+            Map<String, Object> fallback = Map.of(
+                "id", id,
+                "fullName", "User " + id,
+                "email", "unknown@example.com",
+                "role", "UNKNOWN"
+            );
+            return ResponseEntity.ok(fallback);
+        }
+    }
+
+    // Restaurant details for notification context
+    @GetMapping("/restaurants/{id}/details")
+    public ResponseEntity<Map<String, Object>> getRestaurantDetails(@PathVariable("id") Long id) {
+        try {
+            Restaurant restaurant = restaurantRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Restaurant not found"));
+
+            Map<String, Object> restaurantDetails = Map.of(
+                "id", restaurant.getId(),
+                "name", restaurant.getName() != null ? restaurant.getName() : "Unknown Restaurant",
+                "address", restaurant.getAddress() != null ? restaurant.getAddress() : "Unknown address",
+                "phone", restaurant.getPhoneNumber() != null ? restaurant.getPhoneNumber() : "Unknown phone"
+            );
+
+            return ResponseEntity.ok(restaurantDetails);
+        } catch (Exception e) {
+            // Return fallback data if restaurant not found
+            Map<String, Object> fallback = Map.of(
+                "id", id,
+                "name", "Restaurant " + id,
+                "address", "Unknown address",
+                "phone", "Unknown phone"
+            );
+            return ResponseEntity.ok(fallback);
+        }
+    }
+
     @PostMapping("/fix-permissions")
     public ResponseEntity<String> fixMissingPermissions() {
         try {
@@ -314,5 +410,51 @@ public class AdminController {
             return ResponseEntity.ok("Permission may already exist: " + e.getMessage());
         }
     }
+
+    @PostMapping("/refresh-token")
+    public ResponseEntity<Map<String, Object>> refreshUserToken() {
+        try {
+            // Get current user
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated()) {
+                return ResponseEntity.status(401).body(Map.of("error", "Not authenticated"));
+            }
+
+            String username = auth.getName();
+            Optional<User> userOpt = userRepository.findByUsername(username);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.status(404).body(Map.of("error", "User not found"));
+            }
+
+            User user = userOpt.get();
+
+            // Generate new JWT token with latest permissions
+            Map<String, Object> extraClaims = new HashMap<>();
+            extraClaims.put("role", user.getRole().name());
+            extraClaims.put("userId", user.getId());
+
+            // Add RBAC permissions to JWT token
+            var rbacPermissions = rbacService.getUserPermissionAuthorities(user.getId());
+            var permissionKeys = rbacPermissions.stream()
+                    .map(authority -> authority.getAuthority())
+                    .filter(perm -> perm.startsWith("PERM_")) // Only include RBAC permissions
+                    .map(perm -> perm.replace("PERM_", "")) // Remove PERM_ prefix
+                    .collect(java.util.stream.Collectors.toList());
+            extraClaims.put("permissions", permissionKeys);
+
+            String newToken = jwtUtil.generateToken(user, extraClaims);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("token", newToken);
+            response.put("permissions", permissionKeys);
+            response.put("message", "Token refreshed successfully");
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to refresh token: " + e.getMessage()));
+        }
+    }
+
+
 
 }

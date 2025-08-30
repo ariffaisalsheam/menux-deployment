@@ -40,6 +40,41 @@ export const RestaurantManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const navigate = useNavigate();
 
+  // Download report handler
+  const handleDownloadReport = async (restaurant: AdminRestaurant) => {
+    try {
+      // Create a simple CSV report with restaurant data
+      const csvContent = [
+        ['Restaurant Report'],
+        ['Generated on:', new Date().toLocaleDateString()],
+        [''],
+        ['Restaurant Name:', restaurant.name],
+        ['Address:', restaurant.address],
+        ['Phone:', restaurant.phone || 'N/A'],
+        ['Email:', restaurant.email || 'N/A'],
+        ['Owner:', restaurant.ownerName || 'N/A'],
+        ['Owner Email:', restaurant.ownerEmail || 'N/A'],
+        ['Subscription Plan:', restaurant.subscriptionPlan],
+        ['Status:', restaurant.status],
+        ['Total Orders:', restaurant.totalOrders.toString()],
+        ['Monthly Revenue:', `৳${restaurant.monthlyRevenue.toLocaleString()}`],
+        ['Join Date:', restaurant.joinDate ? new Date(restaurant.joinDate).toLocaleDateString() : 'N/A']
+      ].map(row => row.join(',')).join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `restaurant-${restaurant.id}-report.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Failed to download report:', error);
+    }
+  };
+
   // Fetch restaurants
   const {
     data: restaurants = [],
@@ -230,7 +265,7 @@ export const RestaurantManagement: React.FC = () => {
                         <Crown className="w-4 h-4 mr-2" />
                         View Subscription
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDownloadReport(restaurant)}>
                         Download Reports
                       </DropdownMenuItem>
                     </DropdownMenuContent>
